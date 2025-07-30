@@ -1,29 +1,42 @@
 {
   "expo": {
-    "name": "cashBook",
-    "slug": "cashBook",
+    "name": "Cashbook",
+    "slug": "cashbook",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/splash-icon.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.cashbook"
     },
     "android": {
+      "package": "com.yourcompany.cashbook",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "owner": "ahsan1999",
+    "extra": {
+      "eas": {
+        "projectId": "ef345d67-c219-41a2-9da6-b68aaa621841"
+      }
     }
   }
 }
