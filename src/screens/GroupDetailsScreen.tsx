@@ -13,8 +13,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
+import Toast from 'react-native-toast-message';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Group, Expense } from '../types';
 import { groupService } from '../services/groupService';
 import { expenseService } from '../services/expenseService';
@@ -29,6 +31,7 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
   const { group } = route.params;
   const { user } = useAuth();
   const { formatAmount } = useCurrency();
+  const { theme } = useTheme();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [totalCashIn, setTotalCashIn] = useState(0);
@@ -60,6 +63,12 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
   const [editExpenseCategory, setEditExpenseCategory] = useState('General');
   const [editExpenseDescription, setEditExpenseDescription] = useState('');
 
+  // Group edit/delete state
+  const [showEditGroup, setShowEditGroup] = useState(false);
+  const [editGroupName, setEditGroupName] = useState(group.name);
+  const [editGroupDescription, setEditGroupDescription] = useState(group.description || '');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   // Swipe gesture state
   const [swipeAnimations, setSwipeAnimations] = useState<{ [key: string]: Animated.Value }>({});
 
@@ -71,6 +80,8 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
   useEffect(() => {
     fetchExpenses();
   }, [group.id]);
+
+
 
   const fetchExpenses = async () => {
     try {
@@ -99,25 +110,36 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
       // Fetch user names for all paidBy IDs
       if (groupExpenses.length > 0) {
         const ids = groupExpenses.map(e => e.paidBy);
-        console.log('Fetching user names for IDs:', ids);
         const names = await getUserDisplayNames(ids);
         setUserNames(names);
       }
     } catch (error: any) {
       console.error('Error fetching expenses:', error);
-      Alert.alert('Error', `Failed to load expenses: ${error.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to load expenses: ${error.message}`,
+      });
     }
   };
 
   const handleAddExpense = async () => {
     if (!expenseTitle || !expenseAmount) {
-      Alert.alert('Error', 'Please fill in title and amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please fill in title and amount',
+      });
       return;
     }
 
     const amount = parseFloat(expenseAmount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter a valid amount',
+      });
       return;
     }
 
@@ -133,6 +155,13 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         splitBetween: group.members, // Split between all members
       });
 
+      // Show success message immediately
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Expense added successfully!',
+      });
+
       // Reset form
       setExpenseTitle('');
       setExpenseAmount('');
@@ -142,10 +171,12 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
 
       // Refresh expenses
       await fetchExpenses();
-
-      Alert.alert('Success', 'Expense added successfully!');
     } catch (error: any) {
-      Alert.alert('Error', `Failed to add expense: ${error.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to add expense: ${error.message}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -153,13 +184,21 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
 
   const handleCashIn = async () => {
     if (!cashInTitle || !cashInAmount) {
-      Alert.alert('Error', 'Please fill in title and amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please fill in title and amount',
+      });
       return;
     }
 
     const amount = parseFloat(cashInAmount);
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Please enter a valid amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter a valid amount',
+      });
       return;
     }
 
@@ -175,6 +214,13 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         splitBetween: group.members, // Split between all members
       });
 
+      // Show success message immediately
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Cash in added successfully!',
+      });
+
       // Reset form
       setCashInTitle('');
       setCashInAmount('');
@@ -183,10 +229,12 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
 
       // Refresh expenses
       await fetchExpenses();
-
-      Alert.alert('Success', 'Cash in added successfully!');
     } catch (error: any) {
-      Alert.alert('Error', `Failed to add cash in: ${error.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to add cash in: ${error.message}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -194,12 +242,20 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
 
   const handleAddMember = async () => {
     if (!newMemberEmail) {
-      Alert.alert('Error', 'Please enter an email address');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please enter an email address',
+      });
       return;
     }
 
     if (!user) {
-      Alert.alert('Error', 'User not authenticated');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'User not authenticated',
+      });
       return;
     }
 
@@ -212,10 +268,18 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
       });
       setNewMemberEmail('');
       setShowAddMember(false);
-      Alert.alert('Success', 'Invitation sent successfully!');
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Invitation sent successfully!',
+      });
     } catch (error: any) {
       console.error('Error adding member:', error);
-      Alert.alert('Error', `Failed to send invitation: ${error.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to send invitation: ${error.message}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -232,7 +296,11 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
 
   const handleUpdateExpense = async () => {
     if (!editingExpense || !editExpenseTitle || !editExpenseAmount) {
-      Alert.alert('Error', 'Please fill in title and amount');
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Please fill in title and amount',
+      });
       return;
     }
 
@@ -240,7 +308,11 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
       setLoading(true);
       const amount = parseFloat(editExpenseAmount);
       if (isNaN(amount) || amount <= 0) {
-        Alert.alert('Error', 'Please enter a valid amount');
+        Toast.show({
+          type: 'error',
+          text1: 'Error',
+          text2: 'Please enter a valid amount',
+        });
         return;
       }
 
@@ -257,10 +329,18 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
       setShowEditExpense(false);
       setEditingExpense(null);
       await fetchExpenses(); // Refresh the expenses
-      Alert.alert('Success', 'Expense updated successfully!');
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Expense updated successfully!',
+      });
     } catch (error: any) {
       console.error('Error updating expense:', error);
-      Alert.alert('Error', `Failed to update expense: ${error.message}`);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: `Failed to update expense: ${error.message}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -280,10 +360,18 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               setLoading(true);
               await expenseService.deleteExpense(expense.id);
               await fetchExpenses(); // Refresh the expenses
-              Alert.alert('Success', 'Expense deleted successfully!');
+              Toast.show({
+                type: 'success',
+                text1: 'Success',
+                text2: 'Expense deleted successfully!',
+              });
             } catch (error: any) {
               console.error('Error deleting expense:', error);
-              Alert.alert('Error', `Failed to delete expense: ${error.message}`);
+              Toast.show({
+                type: 'error',
+                text1: 'Error',
+                text2: `Failed to delete expense: ${error.message}`,
+              });
             } finally {
               setLoading(false);
             }
@@ -292,6 +380,68 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
       ]
     );
   };
+
+  // Group management functions
+  const handleEditGroup = async () => {
+    if (!editGroupName.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Group name is required',
+      });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await groupService.updateGroup(group.id, {
+        name: editGroupName.trim(),
+        description: editGroupDescription.trim() || undefined,
+      });
+      
+      // Update the group in route params
+      route.params.group.name = editGroupName.trim();
+      route.params.group.description = editGroupDescription.trim() || undefined;
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Group updated successfully',
+      });
+      setShowEditGroup(false);
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    try {
+      setLoading(true);
+      await groupService.deleteGroup(group.id);
+      Toast.show({
+        type: 'success',
+        text1: 'Success',
+        text2: 'Group deleted successfully',
+      });
+      navigation.goBack();
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isGroupOwner = user?.id === group.createdBy;
 
   const getOrCreateAnimation = (expenseId: string) => {
     if (!swipeAnimations[expenseId]) {
@@ -363,7 +513,10 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
           <Animated.View
             style={[
               styles.expenseItem,
-              isCashIn ? styles.cashInCard : styles.cashOutCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.borderLight,
+              },
               {
                 transform: [{
                   translateX: getOrCreateAnimation(expense.id)
@@ -373,14 +526,14 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
           >
             {/* Top row: Date and Time */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={styles.expenseDate}>
+              <Text style={[styles.expenseDate, { color: theme.colors.textSecondary }]}>
                 {expense.createdAt.toLocaleDateString('en-US', { 
                   weekday: 'short', 
                   day: 'numeric', 
                   month: 'long' 
                 })}
               </Text>
-              <Text style={styles.expenseTime}>
+              <Text style={[styles.expenseTime, { color: theme.colors.textSecondary }]}>
                 {expense.createdAt.toLocaleTimeString('en-US', { 
                   hour: '2-digit', 
                   minute: '2-digit',
@@ -391,24 +544,27 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
             
             {/* Second row: Title and Amount */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.expenseTitle}>{expense.title}</Text>
-              <Text style={[styles.expenseAmount, isCashIn ? styles.cashInAmount : styles.cashOutAmount]}>
+              <Text style={[styles.expenseTitle, { color: theme.colors.text }]}>{expense.title}</Text>
+              <Text style={[
+                styles.expenseAmount, 
+                { color: isCashIn ? theme.colors.success : theme.colors.error }
+              ]}>
                 {isCashIn ? '+' : '-'}{formatAmount(displayAmount)}
               </Text>
             </View>
             
             {/* Third row: User */}
-            <Text style={styles.expenseMeta}>
+            <Text style={[styles.expenseMeta, { color: theme.colors.textSecondary }]}>
               Entered by {userName}
             </Text>
             
             {/* Description if exists */}
             {expense.description ? (
-              <Text style={styles.expenseDescription}>{expense.description}</Text>
+              <Text style={[styles.expenseDescription, { color: theme.colors.textSecondary }]}>{expense.description}</Text>
             ) : null}
             
             {/* Balance at bottom */}
-            <Text style={styles.expenseBalance}>Balance after: {formatAmount(expense.runningBalance)}</Text>
+            <Text style={[styles.expenseBalance, { color: theme.colors.textTertiary }]}>Balance after: {formatAmount(expense.runningBalance)}</Text>
           </Animated.View>
         </PanGestureHandler>
       );
@@ -416,48 +572,56 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{group.name}</Text>
-        <View style={{ width: 24 }} />
+        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>{group.name}</Text>
+        {isGroupOwner && (
+          <TouchableOpacity 
+            onPress={() => setShowEditGroup(true)}
+            style={styles.headerMenuButton}
+          >
+            <Ionicons name="ellipsis-vertical" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
+        {!isGroupOwner && <View style={{ width: 24 }} />}
       </View>
 
       <ScrollView style={styles.content}>
         {/* Group Info */}
-        <View style={styles.groupInfo}>
-          <Text style={styles.groupName}>{group.name}</Text>
+        <View style={[styles.groupInfo, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.groupName, { color: theme.colors.text }]}>{group.name}</Text>
           {group.description && (
-            <Text style={styles.groupDescription}>{group.description}</Text>
+            <Text style={[styles.groupDescription, { color: theme.colors.textSecondary }]}>{group.description}</Text>
           )}
-          <Text style={styles.memberCount}>{group.members.length} members</Text>
+          <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>{group.members.length} members</Text>
         </View>
 
         {/* Summary Cards */}
         <View style={styles.summaryContainer}>
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.summaryLabel}>Net Balance</Text>
-              <Text style={[styles.summaryAmount, { color: netBalance >= 0 ? '#059669' : '#dc2626' }]}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.text }]}>Net Balance</Text>
+              <Text style={[styles.summaryAmount, { color: netBalance >= 0 ? theme.colors.success : theme.colors.error }]}>
                 {formatAmount(netBalance)}
               </Text>
             </View>
           </View>
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.summaryLabel}>Total In (+)</Text>
-              <Text style={[styles.summaryAmount, { color: '#059669' }]}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.text }]}>Total In (+)</Text>
+              <Text style={[styles.summaryAmount, { color: theme.colors.success }]}>
                 {formatAmount(totalCashIn)}
               </Text>
             </View>
           </View>
-          <View style={styles.summaryCard}>
+          <View style={[styles.summaryCard, { backgroundColor: theme.colors.surface }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={styles.summaryLabel}>Total Out (-)</Text>
-              <Text style={[styles.summaryAmount, { color: '#dc2626' }]}>
+              <Text style={[styles.summaryLabel, { color: theme.colors.text }]}>Total Out (-)</Text>
+              <Text style={[styles.summaryAmount, { color: theme.colors.error }]}>
                 {formatAmount(totalCashOut)}
               </Text>
             </View>
@@ -467,45 +631,45 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.cashInButton]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.surface }]}
             onPress={() => setShowCashIn(true)}
           >
-            <Ionicons name="add-circle-outline" size={24} color="#059669" />
-            <Text style={styles.actionButtonText}>Cash In</Text>
+            <Ionicons name="add-circle-outline" size={24} color={theme.colors.success} />
+            <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>Cash In</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.actionButton, styles.cashOutButton]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.surface }]}
             onPress={() => setShowAddExpense(true)}
           >
-            <Ionicons name="remove-circle-outline" size={24} color="#dc2626" />
-            <Text style={styles.actionButtonText}>Cash Out</Text>
+            <Ionicons name="remove-circle-outline" size={24} color={theme.colors.error} />
+            <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>Cash Out</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.actionButtons}>
           <TouchableOpacity
-            style={[styles.actionButton, styles.addMemberButton]}
+            style={[styles.actionButton, { backgroundColor: theme.colors.surface }]}
             onPress={() => setShowAddMember(true)}
           >
-            <Ionicons name="person-add-outline" size={24} color="#2563eb" />
-            <Text style={styles.actionButtonText}>Add Member</Text>
+            <Ionicons name="person-add-outline" size={24} color={theme.colors.primary} />
+            <Text style={[styles.actionButtonText, { color: theme.colors.text }]}>Add Member</Text>
           </TouchableOpacity>
           
         </View>
 
         {/* Expenses List */}
         <View style={styles.expensesSection}>
-          <Text style={styles.sectionTitle}>Recent Expenses</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Recent Expenses</Text>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading expenses...</Text>
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading expenses...</Text>
             </View>
           ) : expenses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="receipt-outline" size={48} color="#9ca3af" />
-              <Text style={styles.emptyStateText}>No expenses yet</Text>
-              <Text style={styles.emptyStateSubtext}>
+              <Ionicons name="receipt-outline" size={48} color={theme.colors.textTertiary} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.text }]}>No expenses yet</Text>
+              <Text style={[styles.emptyStateSubtext, { color: theme.colors.textSecondary }]}>
                 Add your first expense to get started
               </Text>
             </View>
@@ -523,30 +687,46 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         onRequestClose={() => setShowAddExpense(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Expense</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Add Expense</Text>
               <TouchableOpacity onPress={() => setShowAddExpense(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Title *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="What was this expense for?"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={expenseTitle}
                   onChangeText={setExpenseTitle}
                 />
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Amount *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Amount *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="0.00"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={expenseAmount}
                   onChangeText={setExpenseAmount}
                   keyboardType="numeric"
@@ -554,23 +734,21 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Category</Text>
-                <View style={styles.categoryContainer}>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Category</Text>
+                <View style={[styles.categoryContainer, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
                   {categories.map((category) => (
                     <TouchableOpacity
                       key={category}
                       style={[
-                        styles.categoryChip,
-                        expenseCategory === category && styles.categoryChipSelected,
+                        styles.categoryButton,
+                        expenseCategory === category && { backgroundColor: theme.colors.primary }
                       ]}
                       onPress={() => setExpenseCategory(category)}
                     >
-                      <Text
-                        style={[
-                          styles.categoryChipText,
-                          expenseCategory === category && styles.categoryChipTextSelected,
-                        ]}
-                      >
+                      <Text style={[
+                        styles.categoryButtonText,
+                        { color: expenseCategory === category ? theme.colors.onPrimary : theme.colors.text }
+                      ]}>
                         {category}
                       </Text>
                     </TouchableOpacity>
@@ -579,10 +757,19 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Description (Optional)</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Description (Optional)</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Add any additional details..."
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={expenseDescription}
                   onChangeText={setExpenseDescription}
                   multiline
@@ -591,11 +778,17 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                style={[
+                  styles.submitButton,
+                  {
+                    backgroundColor: theme.colors.primary,
+                    opacity: loading ? 0.6 : 1,
+                  },
+                ]}
                 onPress={handleAddExpense}
                 disabled={loading}
               >
-                <Text style={styles.submitButtonText}>
+                <Text style={[styles.submitButtonText, { color: theme.colors.onPrimary }]}>
                   {loading ? 'Adding...' : 'Add Expense'}
                 </Text>
               </TouchableOpacity>
@@ -612,30 +805,46 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         onRequestClose={() => setShowCashIn(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cash In</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Cash In</Text>
               <TouchableOpacity onPress={() => setShowCashIn(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Title *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="What is this cash in for?"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={cashInTitle}
                   onChangeText={setCashInTitle}
                 />
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Amount *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Amount *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="0.00"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={cashInAmount}
                   onChangeText={setCashInAmount}
                   keyboardType="numeric"
@@ -643,10 +852,19 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Description (Optional)</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Description (Optional)</Text>
                 <TextInput
-                  style={[styles.input, styles.textArea]}
+                  style={[
+                    styles.input,
+                    styles.textArea,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Add any additional details..."
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={cashInDescription}
                   onChangeText={setCashInDescription}
                   multiline
@@ -655,11 +873,17 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                style={[
+                  styles.submitButton,
+                  {
+                    backgroundColor: theme.colors.primary,
+                    opacity: loading ? 0.6 : 1,
+                  },
+                ]}
                 onPress={handleCashIn}
                 disabled={loading}
               >
-                <Text style={styles.submitButtonText}>
+                <Text style={[styles.submitButtonText, { color: theme.colors.onPrimary }]}>
                   {loading ? 'Adding...' : 'Add Cash In'}
                 </Text>
               </TouchableOpacity>
@@ -676,20 +900,28 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         onRequestClose={() => setShowAddMember(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Invite Member</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Invite Member</Text>
               <TouchableOpacity onPress={() => setShowAddMember(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email Address *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Email Address *</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Enter email address"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={newMemberEmail}
                   onChangeText={setNewMemberEmail}
                   keyboardType="email-address"
@@ -698,11 +930,17 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+                style={[
+                  styles.submitButton,
+                  {
+                    backgroundColor: theme.colors.primary,
+                    opacity: loading ? 0.6 : 1,
+                  },
+                ]}
                 onPress={handleAddMember}
                 disabled={loading}
               >
-                <Text style={styles.submitButtonText}>
+                <Text style={[styles.submitButtonText, { color: theme.colors.onPrimary }]}>
                   {loading ? 'Sending...' : 'Send Invitation'}
                 </Text>
               </TouchableOpacity>
@@ -719,30 +957,46 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
         onRequestClose={() => setShowEditExpense(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Expense</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Expense</Text>
               <TouchableOpacity onPress={() => setShowEditExpense(false)}>
-                <Ionicons name="close" size={24} color="#6b7280" />
+                <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Title *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Title *</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Enter expense title"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
+                  placeholder="What was this expense for?"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={editExpenseTitle}
                   onChangeText={setEditExpenseTitle}
                 />
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Amount *</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Amount *</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Enter amount"
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surfaceVariant,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
+                  placeholder="0.00"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={editExpenseAmount}
                   onChangeText={setEditExpenseAmount}
                   keyboardType="numeric"
@@ -750,32 +1004,30 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Category</Text>
-                <View style={styles.categoryContainer}>
-                  {categories.map((category) => (
-                    <TouchableOpacity
-                      key={category}
-                      style={[
-                        styles.categoryChip,
-                        editExpenseCategory === category && styles.categoryChipSelected,
-                      ]}
-                      onPress={() => setEditExpenseCategory(category)}
-                    >
-                      <Text
+                <Text style={[styles.label, { color: theme.colors.text }]}>Category</Text>
+                                  <View style={[styles.categoryContainer, { backgroundColor: theme.colors.surfaceVariant, borderColor: theme.colors.border }]}>
+                    {categories.map((category) => (
+                      <TouchableOpacity
+                        key={category}
                         style={[
-                          styles.categoryChipText,
-                          editExpenseCategory === category && styles.categoryChipTextSelected,
+                          styles.categoryButton,
+                          editExpenseCategory === category && { backgroundColor: theme.colors.primary }
                         ]}
+                        onPress={() => setEditExpenseCategory(category)}
                       >
-                        {category}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                        <Text style={[
+                          styles.categoryButtonText,
+                          { color: editExpenseCategory === category ? theme.colors.onPrimary : theme.colors.text }
+                        ]}>
+                          {category}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Description</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Description</Text>
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Add any additional details..."
@@ -786,11 +1038,17 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
                 />
               </View>
 
-              <TouchableOpacity
-                style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-                onPress={handleUpdateExpense}
-                disabled={loading}
-              >
+                                <TouchableOpacity
+                    style={[
+                      styles.submitButton,
+                      {
+                        backgroundColor: theme.colors.primary,
+                        opacity: loading ? 0.6 : 1,
+                      },
+                    ]}
+                    onPress={handleUpdateExpense}
+                    disabled={loading}
+                  >
                 <Text style={styles.submitButtonText}>
                   {loading ? 'Updating...' : 'Update Expense'}
                 </Text>
@@ -798,35 +1056,156 @@ export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigati
             </ScrollView>
           </View>
         </View>
-      </Modal>
-    </SafeAreaView>
-  );
-};
+              </Modal>
+
+        {/* Edit Group Modal */}
+        <Modal
+          visible={showEditGroup}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowEditGroup(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Group</Text>
+                <TouchableOpacity onPress={() => setShowEditGroup(false)}>
+                  <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Group Name *</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.surfaceVariant,
+                        borderColor: theme.colors.border,
+                        color: theme.colors.text,
+                      },
+                    ]}
+                    value={editGroupName}
+                    onChangeText={setEditGroupName}
+                    placeholder="Enter group name"
+                    placeholderTextColor={theme.colors.textTertiary}
+                  />
+                </View>
+
+                <View style={styles.inputContainer}>
+                  <Text style={[styles.label, { color: theme.colors.text }]}>Description (Optional)</Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      styles.textArea,
+                      {
+                        backgroundColor: theme.colors.surfaceVariant,
+                        borderColor: theme.colors.border,
+                        color: theme.colors.text,
+                      },
+                    ]}
+                    value={editGroupDescription}
+                    onChangeText={setEditGroupDescription}
+                    placeholder="Enter group description"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.submitButton,
+                    {
+                      backgroundColor: theme.colors.primary,
+                      opacity: loading ? 0.6 : 1,
+                    },
+                  ]}
+                  onPress={handleEditGroup}
+                  disabled={loading}
+                >
+                  <Text style={[styles.submitButtonText, { color: theme.colors.onPrimary }]}>
+                    {loading ? 'Updating...' : 'Update Group'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.submitButton, { backgroundColor: theme.colors.error, marginTop: 12 }]}
+                  onPress={() => setShowDeleteConfirm(true)}
+                >
+                  <Text style={styles.submitButtonText}>Delete Group</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          visible={showDeleteConfirm}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setShowDeleteConfirm(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+              <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Delete Group</Text>
+                <TouchableOpacity onPress={() => setShowDeleteConfirm(false)}>
+                  <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={[styles.deleteMessage, { color: theme.colors.textSecondary }]}>
+                Are you sure you want to delete "{group.name}"? This action cannot be undone and will delete all expenses in this group.
+              </Text>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.cancelButton, { borderColor: theme.colors.border }]}
+                  onPress={() => setShowDeleteConfirm(false)}
+                >
+                  <Text style={[styles.cancelButtonText, { color: theme.colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteButton, { backgroundColor: theme.colors.error }]}
+                  onPress={handleDeleteGroup}
+                >
+                  <Text style={[styles.deleteButtonText, { color: theme.colors.onError }]}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
+    );
+  };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 20,
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerMenuButton: {
+    padding: 8,
   },
   content: {
     flex: 1,
   },
   groupInfo: {
-    backgroundColor: '#ffffff',
     padding: 20,
     margin: 20,
     borderRadius: 12,
@@ -839,17 +1218,14 @@ const styles = StyleSheet.create({
   groupName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 8,
   },
   groupDescription: {
     fontSize: 16,
-    color: '#6b7280',
     marginBottom: 8,
   },
   memberCount: {
     fontSize: 14,
-    color: '#059669',
     fontWeight: '500',
   },
   summaryContainer: {
@@ -857,7 +1233,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   summaryCard: {
-    backgroundColor: '#ffffff',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -869,13 +1244,11 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#6b7280',
     marginBottom: 4,
   },
   summaryAmount: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
   },
   actionButtons: {
     flexDirection: 'row',
@@ -889,24 +1262,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
-  },
-  cashInButton: {
-    borderWidth: 1,
-    borderColor: '#d1fae5',
-  },
-  cashOutButton: {
-    borderWidth: 1,
-    borderColor: '#fecaca',
-  },
-  addMemberButton: {
-    borderWidth: 1,
-    borderColor: '#dbeafe',
   },
   actionButtonText: {
     marginLeft: 8,
@@ -919,8 +1279,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
     marginBottom: 16,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  loadingText: {
+    fontSize: 16,
   },
   emptyState: {
     alignItems: 'center',
@@ -929,47 +1295,34 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
     marginTop: 12,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#9ca3af',
     textAlign: 'center',
     marginTop: 4,
   },
   expenseItem: {
-    backgroundColor: '#ffffff',
     padding: 16,
     marginBottom: 12,
     borderRadius: 12,
+    borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
   },
-  cashInCard: {
-    borderLeftWidth: 5,
-    borderLeftColor: '#059669',
-  },
-  cashOutCard: {
-    borderLeftWidth: 5,
-    borderLeftColor: '#dc2626',
-  },
   expenseTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
   },
   expenseCategory: {
     fontSize: 14,
-    color: '#6b7280',
     marginTop: 2,
   },
   expenseDescription: {
     fontSize: 12,
-    color: '#9ca3af',
     marginTop: 4,
   },
   expenseAmountContainer: {
@@ -979,40 +1332,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  cashInAmount: {
-    color: '#059669',
-  },
-  cashOutAmount: {
-    color: '#dc2626',
-  },
   expenseDate: {
     fontSize: 12,
-    color: '#9ca3af',
     marginTop: 0,
   },
   expenseTime: {
     fontSize: 12,
-    color: '#9ca3af',
     marginTop: 0,
   },
   expenseMeta: {
     fontSize: 12,
-    color: '#6b7280',
     marginTop: 4,
   },
   expenseBalance: {
     fontSize: 14,
-    color: '#1f2937',
     fontWeight: '500',
     marginTop: 8,
   },
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -1027,7 +1373,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
   },
   form: {
     gap: 16,
@@ -1036,17 +1381,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: '#374151',
     marginBottom: 8,
     fontWeight: '500',
+    fontSize: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: '#1f2937',
+    fontSize: 16,
   },
   textArea: {
     height: 80,
@@ -1056,49 +1400,57 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
   },
-  categoryChip: {
+  categoryButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
     borderWidth: 1,
-    borderColor: '#e5e7eb',
   },
-  categoryChipSelected: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  categoryChipText: {
+  categoryButtonText: {
     fontSize: 14,
-    color: '#6b7280',
-  },
-  categoryChipTextSelected: {
-    color: '#ffffff',
   },
   submitButton: {
-    backgroundColor: '#2563eb',
     paddingVertical: 16,
     borderRadius: 8,
     marginTop: 8,
   },
-  submitButtonDisabled: {
-    opacity: 0.5,
-  },
   submitButtonText: {
-    color: '#ffffff',
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 16,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 32,
+  deleteMessage: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
   },
-  loadingText: {
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  cancelButtonText: {
+    textAlign: 'center',
+    fontWeight: '600',
     fontSize: 16,
-    color: '#6b7280',
+  },
+  deleteButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  deleteButtonText: {
+    textAlign: 'center',
+    fontWeight: '600',
+    fontSize: 16,
   },
 }); 

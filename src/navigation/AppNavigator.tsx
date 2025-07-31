@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { LoginScreen } from '../screens/LoginScreen';
 import { SignUpScreen } from '../screens/SignUpScreen';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -16,6 +17,7 @@ import { GroupDetailsScreen } from '../screens/GroupDetailsScreen';
 import { InvitationsScreen } from '../screens/InvitationsScreen';
 import { AccountSettingsScreen } from '../screens/AccountSettingsScreen';
 import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
+import { ThemeSettingsScreen } from '../screens/ThemeSettingsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -27,34 +29,42 @@ const AuthStack = () => (
   </Stack.Navigator>
 );
 
-const MainTabNavigator = () => (
-  <Tab.Navigator
-    screenOptions={({ route }) => ({
-      tabBarIcon: ({ focused, color, size }) => {
-        let iconName: keyof typeof Ionicons.glyphMap;
+const MainTabNavigator = () => {
+  const { theme } = useTheme();
+  
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap;
 
-        if (route.name === 'Home') {
-          iconName = focused ? 'home' : 'home-outline';
-        } else if (route.name === 'Groups') {
-          iconName = focused ? 'people' : 'people-outline';
-        } else if (route.name === 'Profile') {
-          iconName = focused ? 'person' : 'person-outline';
-        } else {
-          iconName = 'help-outline';
-        }
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'Groups') {
+            iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          } else {
+            iconName = 'help-outline';
+          }
 
-        return <Ionicons name={iconName} size={size} color={color} />;
-      },
-      tabBarActiveTintColor: '#2563eb',
-      tabBarInactiveTintColor: 'gray',
-      headerShown: false,
-    })}
-  >
-    <Tab.Screen name="Home" component={HomeScreen} />
-    <Tab.Screen name="Groups" component={GroupsScreen} />
-    <Tab.Screen name="Profile" component={ProfileScreen} />
-  </Tab.Navigator>
-);
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textSecondary,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Groups" component={GroupsScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+};
 
 const MainStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -64,6 +74,7 @@ const MainStack = () => (
     <Stack.Screen name="Invitations" component={InvitationsScreen} />
     <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} />
     <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+    <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
   </Stack.Navigator>
 );
 

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface SignUpScreenProps {
   navigation: any;
@@ -24,6 +25,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { signUp } = useAuth();
+  const { theme } = useTheme();
 
   const handleSignUp = async () => {
     if (!displayName || !email || !password || !confirmPassword) {
@@ -54,7 +56,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardContainer}
@@ -62,18 +64,26 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.content}>
             <View style={styles.header}>
-              <Text style={styles.title}>Create Account</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { color: theme.colors.text }]}>Create Account</Text>
+              <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
                 Sign up to start managing your expenses
               </Text>
             </View>
 
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Full Name</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Full Name</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Enter your full name"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={displayName}
                   onChangeText={setDisplayName}
                   autoCapitalize="words"
@@ -82,10 +92,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Enter your email"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -95,10 +113,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Enter your password"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
@@ -107,10 +133,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
 
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Confirm Password</Text>
+                <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      color: theme.colors.text,
+                    },
+                  ]}
                   placeholder="Confirm your password"
+                  placeholderTextColor={theme.colors.textTertiary}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry
@@ -119,19 +153,25 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
               </View>
 
               <TouchableOpacity
-                style={[styles.button, loading && styles.buttonDisabled]}
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: theme.colors.primary,
+                    opacity: loading ? 0.6 : 1,
+                  },
+                ]}
                 onPress={handleSignUp}
                 disabled={loading}
               >
-                <Text style={styles.buttonText}>
-                  {loading ? 'Creating Account...' : 'Sign Up'}
+                <Text style={[styles.buttonText, { color: theme.colors.onPrimary }]}>
+                  {loading ? 'Creating Account...' : 'Create Account'}
                 </Text>
               </TouchableOpacity>
 
               <View style={styles.footer}>
-                <Text style={styles.footerText}>Already have an account? </Text>
+                <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Already have an account? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                  <Text style={styles.linkText}>Sign In</Text>
+                  <Text style={[styles.linkText, { color: theme.colors.primary }]}>Sign In</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -145,7 +185,6 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
   },
   scrollContent: {
     flexGrow: 1,
@@ -162,12 +201,10 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    color: '#1f2937',
     marginBottom: 8,
   },
   subtitle: {
     textAlign: 'center',
-    color: '#6b7280',
   },
   form: {
     gap: 16,
@@ -176,29 +213,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: '#374151',
     marginBottom: 8,
     fontWeight: '500',
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: '#1f2937',
   },
   button: {
-    backgroundColor: '#2563eb',
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 24,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
   buttonText: {
-    color: '#ffffff',
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 18,
@@ -209,10 +238,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: '#6b7280',
+    // Color will be applied via theme
   },
   linkText: {
-    color: '#2563eb',
     fontWeight: '600',
   },
   keyboardContainer: {

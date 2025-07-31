@@ -84,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: newUser.email!,
         displayName,
         createdAt: new Date(),
+        updatedAt: new Date(),
       };
       
       // Only add photoURL if it exists

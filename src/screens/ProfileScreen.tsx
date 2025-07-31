@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { CurrencySelector } from '../components/CurrencySelector';
 import { groupService } from '../services/groupService';
 
@@ -21,6 +22,7 @@ interface ProfileScreenProps {
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, firebaseUser, logout, sendEmailVerification } = useAuth();
   const { selectedCurrency, currencies } = useCurrency();
+  const { theme, themeMode } = useTheme();
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [invitationCount, setInvitationCount] = useState(0);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
@@ -85,6 +87,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
   const currentCurrency = currencies.find(c => c.code === selectedCurrency);
 
+  const getThemeModeDisplay = () => {
+    switch (themeMode) {
+      case 'light':
+        return 'Light Theme';
+      case 'dark':
+        return 'Dark Theme';
+      case 'system':
+        return 'System Default';
+      default:
+        return 'System Default';
+    }
+  };
+
   const menuItems = [
     {
       title: 'Email Verification',
@@ -96,7 +111,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
         ? undefined 
         : handleResendVerification,
       loading: isResendingVerification,
-      color: firebaseUser?.emailVerified ? '#059669' : '#dc2626',
+      color: firebaseUser?.emailVerified ? theme.colors.success : theme.colors.error,
+    },
+    {
+      title: 'Theme',
+      icon: 'color-palette-outline',
+      subtitle: getThemeModeDisplay(),
+      onPress: () => navigation.navigate('ThemeSettings'),
     },
     {
       title: 'Currency',
@@ -142,26 +163,32 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   ];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView>
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.profileInfo}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={40} color="#ffffff" />
+            <View style={[styles.avatar, { backgroundColor: theme.colors.primary }]}>
+              <Ionicons name="person" size={40} color={theme.colors.onPrimary} />
             </View>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{user?.displayName}</Text>
-              <Text style={styles.userEmail}>{user?.email}</Text>
+              <Text style={[styles.userName, { color: theme.colors.text }]}>{user?.displayName}</Text>
+              <Text style={[styles.userEmail, { color: theme.colors.textSecondary }]}>{user?.email}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Settings</Text>
+          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Settings</Text>
           {menuItems.map((item, index) => (
             <TouchableOpacity
               key={index}
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderBottomColor: theme.colors.borderLight,
+                },
+              ]}
               onPress={item.onPress}
               disabled={!item.onPress || item.loading}
             >
@@ -169,33 +196,42 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
                 <Ionicons 
                   name={item.icon as any} 
                   size={24} 
-                  color={item.color || "#6b7280"} 
+                  color={item.color || theme.colors.textSecondary} 
                 />
                 <View style={styles.menuItemText}>
-                  <Text style={styles.menuItemTitle}>{item.title}</Text>
+                  <Text style={[styles.menuItemTitle, { color: theme.colors.text }]}>{item.title}</Text>
                   {item.subtitle && (
-                    <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
+                    <Text style={[styles.menuItemSubtitle, { color: theme.colors.textSecondary }]}>{item.subtitle}</Text>
                   )}
                 </View>
               </View>
               {item.loading ? (
-                <Ionicons name="refresh" size={20} color="#9ca3af" />
+                <Ionicons name="refresh" size={20} color={theme.colors.textTertiary} />
               ) : item.onPress ? (
-                <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
               ) : null}
             </TouchableOpacity>
           ))}
         </View>
 
         <View style={styles.section}>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={24} color="#dc2626" />
-            <Text style={styles.logoutText}>Logout</Text>
+          <TouchableOpacity 
+            style={[
+              styles.logoutButton,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.error,
+              },
+            ]} 
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={24} color={theme.colors.error} />
+            <Text style={[styles.logoutText, { color: theme.colors.error }]}>Logout</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.versionText}>Cashbook v1.0.0</Text>
+          <Text style={[styles.versionText, { color: theme.colors.textSecondary }]}>Cashbook v1.0.0</Text>
         </View>
       </ScrollView>
 
@@ -210,10 +246,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   header: {
-    backgroundColor: '#ffffff',
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
@@ -226,9 +260,8 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#2563eb',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 16,
   },
   userInfo: {
@@ -237,68 +270,62 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 4,
   },
   userEmail: {
     fontSize: 16,
-    color: '#6b7280',
   },
   section: {
-    backgroundColor: '#ffffff',
-    marginTop: 20,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#e5e7eb',
+    margin: 20,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
-    padding: 20,
-    paddingBottom: 10,
+    marginBottom: 16,
   },
   menuItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   menuItemText: {
-    marginLeft: 12,
+    marginLeft: 16,
+    flex: 1,
   },
   menuItemTitle: {
     fontSize: 16,
-    color: '#1f2937',
+    fontWeight: '500',
+    marginBottom: 2,
   },
   menuItemSubtitle: {
     fontSize: 14,
-    color: '#6b7280',
-    marginTop: 2,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   logoutText: {
     fontSize: 16,
-    color: '#dc2626',
-    marginLeft: 12,
-    fontWeight: '500',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   footer: {
     alignItems: 'center',
-    padding: 20,
+    paddingVertical: 20,
   },
   versionText: {
     fontSize: 14,
-    color: '#9ca3af',
   },
 }); 

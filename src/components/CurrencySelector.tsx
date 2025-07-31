@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Currency } from '../types';
 
 interface CurrencySelectorProps {
@@ -11,6 +12,7 @@ interface CurrencySelectorProps {
 
 export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onClose }) => {
   const { selectedCurrency, currencies, setCurrency } = useCurrency();
+  const { theme } = useTheme();
 
   const handleCurrencySelect = (currency: Currency) => {
     setCurrency(currency);
@@ -25,11 +27,16 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
+        <View style={[
+          styles.modalContent,
+          {
+            backgroundColor: theme.colors.surface,
+          },
+        ]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Select Currency</Text>
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Select Currency</Text>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close" size={24} color="#6b7280" />
+              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -39,19 +46,46 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
                 key={currency.code}
                 style={[
                   styles.currencyItem,
+                  {
+                    backgroundColor: selectedCurrency === currency.code 
+                      ? theme.colors.primary 
+                      : theme.colors.surfaceVariant,
+                    borderColor: theme.colors.border,
+                  },
                   selectedCurrency === currency.code && styles.selectedCurrency
                 ]}
                 onPress={() => handleCurrencySelect(currency.code)}
               >
                 <View style={styles.currencyInfo}>
-                  <Text style={styles.currencySymbol}>{currency.symbol}</Text>
+                  <Text style={[
+                    styles.currencySymbol,
+                    {
+                      color: selectedCurrency === currency.code 
+                        ? theme.colors.onPrimary 
+                        : theme.colors.text,
+                    },
+                  ]}>{currency.symbol}</Text>
                   <View style={styles.currencyDetails}>
-                    <Text style={styles.currencyName}>{currency.name}</Text>
-                    <Text style={styles.currencyCode}>{currency.code}</Text>
+                    <Text style={[
+                      styles.currencyName,
+                      {
+                        color: selectedCurrency === currency.code 
+                          ? theme.colors.onPrimary 
+                          : theme.colors.text,
+                      },
+                    ]}>{currency.name}</Text>
+                    <Text style={[
+                      styles.currencyCode,
+                      {
+                        color: selectedCurrency === currency.code 
+                          ? theme.colors.onPrimary 
+                          : theme.colors.textSecondary,
+                      },
+                    ]}>{currency.code}</Text>
                   </View>
                 </View>
                 {selectedCurrency === currency.code && (
-                  <Ionicons name="checkmark-circle" size={24} color="#059669" />
+                  <Ionicons name="checkmark-circle" size={24} color={theme.colors.onPrimary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -64,12 +98,15 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
 
 const styles = StyleSheet.create({
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#ffffff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
@@ -84,7 +121,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#1f2937',
   },
   currencyList: {
     gap: 12,
@@ -95,23 +131,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
-    backgroundColor: '#f9fafb',
-    borderWidth: 2,
-    borderColor: 'transparent',
+    borderWidth: 1,
   },
   selectedCurrency: {
-    backgroundColor: '#ecfdf5',
-    borderColor: '#059669',
+    borderWidth: 2,
   },
   currencyInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   currencySymbol: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
-    marginRight: 12,
+    marginRight: 16,
   },
   currencyDetails: {
     flex: 1,
@@ -119,11 +152,9 @@ const styles = StyleSheet.create({
   currencyName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    marginBottom: 2,
   },
   currencyCode: {
     fontSize: 14,
-    color: '#6b7280',
-    marginTop: 2,
   },
 }); 

@@ -194,6 +194,7 @@ export const groupService = {
 export const getUserDisplayNames = async (userIds: string[]): Promise<Record<string, string>> => {
   const names: Record<string, string> = {};
   const uniqueIds = Array.from(new Set(userIds));
+  
   await Promise.all(uniqueIds.map(async (id) => {
     try {
       const docRef = doc(db, 'users', id);
@@ -204,9 +205,11 @@ export const getUserDisplayNames = async (userIds: string[]): Promise<Record<str
       } else {
         names[id] = id;
       }
-    } catch {
+    } catch (error) {
+      console.error(`Error fetching user ${id}:`, error);
       names[id] = id;
     }
   }));
+  
   return names;
 }; 

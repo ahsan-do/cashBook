@@ -68,4 +68,63 @@ export interface CurrencyContextType {
   setCurrency: (currency: Currency) => void;
   formatAmount: (amount: number) => string;
   convertAmount: (amount: number, fromCurrency: Currency, toCurrency: Currency) => number;
+}
+
+// Theme types
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export interface ThemeColors {
+  // Background colors
+  background: string;
+  surface: string;
+  surfaceVariant: string;
+  
+  // Text colors
+  text: string;
+  textSecondary: string;
+  textTertiary: string;
+  
+  // Primary colors
+  primary: string;
+  primaryVariant: string;
+  onPrimary: string;
+  
+  // Secondary colors
+  secondary: string;
+  secondaryVariant: string;
+  onSecondary: string;
+  
+  // Error colors
+  error: string;
+  onError: string;
+  
+  // Success colors
+  success: string;
+  onSuccess: string;
+  
+  // Warning colors
+  warning: string;
+  onWarning: string;
+  
+  // Border colors
+  border: string;
+  borderLight: string;
+  
+  // Shadow colors
+  shadow: string;
+  
+  // Status bar
+  statusBar: 'light' | 'dark';
+}
+
+export interface Theme {
+  colors: ThemeColors;
+  isDark: boolean;
+}
+
+export interface ThemeContextType {
+  theme: Theme;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  toggleTheme: () => void;
 } 

@@ -10,8 +10,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Group, Expense } from '../types';
 import { groupService } from '../services/groupService';
 import { expenseService } from '../services/expenseService';
@@ -20,9 +22,12 @@ interface HomeScreenProps {
   navigation: any;
 }
 
+const CLEARED_EXPENSES_KEY = 'cleared_expenses';
+
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { formatAmount } = useCurrency();
+  const { theme } = useTheme();
   const [groups, setGroups] = useState<Group[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [invitationCount, setInvitationCount] = useState(0);
@@ -30,6 +35,38 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
   const [clearingExpenses, setClearingExpenses] = useState(false);
+
+  // Get cleared expense IDs from AsyncStorage
+  const getClearedExpenseIds = async (): Promise<string[]> => {
+    try {
+      const clearedExpenses = await AsyncStorage.getItem(CLEARED_EXPENSES_KEY);
+      return clearedExpenses ? JSON.parse(clearedExpenses) : [];
+    } catch (error) {
+      console.error('Error getting cleared expenses:', error);
+      return [];
+    }
+  };
+
+  // Save cleared expense IDs to AsyncStorage
+  const saveClearedExpenseIds = async (expenseIds: string[]): Promise<void> => {
+    try {
+      // Limit the number of cleared expense IDs to prevent unlimited growth
+      // Keep only the last 1000 cleared expense IDs
+      const limitedExpenseIds = expenseIds.slice(-1000);
+      await AsyncStorage.setItem(CLEARED_EXPENSES_KEY, JSON.stringify(limitedExpenseIds));
+    } catch (error) {
+      console.error('Error saving cleared expenses:', error);
+    }
+  };
+
+  // Clear all stored cleared expense IDs (for reset functionality)
+  const clearStoredClearedExpenses = async (): Promise<void> => {
+    try {
+      await AsyncStorage.removeItem(CLEARED_EXPENSES_KEY);
+    } catch (error) {
+      console.error('Error clearing stored cleared expenses:', error);
+    }
+  };
 
   const fetchGroups = async () => {
     try {
@@ -45,13 +82,19 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       if (user?.id) {
         console.log('HomeScreen: Fetching recent expenses for user:', user.id);
         const expenses = await expenseService.getRecentExpenses(user.id, 10); // Fetch more to filter
-        console.log('HomeScreen: Fetched expenses:', expenses.length);
         
-        // Filter out cash in entries (negative amounts) - only show cash out entries
-        const cashOutExpenses = expenses.filter(expense => expense.amount > 0);
-        console.log('HomeScreen: Cash out expenses after filtering:', cashOutExpenses.length);
+        // Get cleared expense IDs
+        const clearedExpenseIds = await getClearedExpenseIds();
+        console.log('HomeScreen: Cleared expense IDs:', clearedExpenseIds);
         
-        setRecentExpenses(cashOutExpenses.slice(0, 5)); // Show only 5 most recent cash out expenses
+        // Filter out cleared expenses and cash in entries (negative amounts)
+        const filteredExpenses = expenses.filter(expense => 
+          expense.amount > 0 && !clearedExpenseIds.includes(expense.id)
+        );
+        
+        console.log('HomeScreen: Filtered expenses:', filteredExpenses.length);
+        
+        setRecentExpenses(filteredExpenses.slice(0, 5)); // Show only 5 most recent cash out expenses
       }
     } catch (error: any) {
       console.error('HomeScreen: Error fetching recent expenses:', error);
@@ -89,6 +132,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           onPress: async () => {
             setClearingExpenses(true);
             try {
+              // Get current cleared expense IDs
+              const currentClearedIds = await getClearedExpenseIds();
+              
+              // Add current expense IDs to cleared list
+              const expenseIdsToClear = recentExpenses.map(expense => expense.id);
+              const updatedClearedIds = [...currentClearedIds, ...expenseIdsToClear];
+              
+              // Save updated cleared expense IDs
+              await saveClearedExpenseIds(updatedClearedIds);
+              
               // Clear the recent expenses from state
               setRecentExpenses([]);
               Alert.alert('Success', 'Recent expenses cleared successfully!');
@@ -102,6 +155,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         },
       ]
     );
+  };
+
+  // Clear a single expense
+  const clearSingleExpense = async (expenseId: string) => {
+    try {
+      // Get current cleared expense IDs
+      const currentClearedIds = await getClearedExpenseIds();
+      
+      // Add the expense ID to cleared list if not already there
+      if (!currentClearedIds.includes(expenseId)) {
+        const updatedClearedIds = [...currentClearedIds, expenseId];
+        await saveClearedExpenseIds(updatedClearedIds);
+      }
+      
+      // Remove from current state
+      setRecentExpenses(prev => prev.filter(expense => expense.id !== expenseId));
+    } catch (error: any) {
+      console.error('Error clearing single expense:', error);
+    }
   };
 
   const onRefresh = async () => {
@@ -122,69 +194,74 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const renderGroupCard = (group: Group) => (
     <TouchableOpacity
       key={group.id}
-      style={styles.groupCard}
+      style={[
+        styles.groupCard,
+        {
+          backgroundColor: theme.colors.surfaceVariant,
+        },
+      ]}
       onPress={() => navigation.navigate('GroupDetails', { group })}
     >
       <View style={styles.groupInfo}>
-        <Text style={styles.groupName}>{group.name}</Text>
-        <Text style={styles.memberCount}>{group.members.length} members</Text>
+        <Text style={[styles.groupName, { color: theme.colors.text }]}>{group.name}</Text>
+        <Text style={[styles.memberCount, { color: theme.colors.textSecondary }]}>{group.members.length} members</Text>
         {group.description && (
-          <Text style={styles.groupDescription}>{group.description}</Text>
+          <Text style={[styles.groupDescription, { color: theme.colors.textSecondary }]}>{group.description}</Text>
         )}
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+      <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
           <View>
-            <Text style={styles.greeting}>Hello, {user?.displayName}!</Text>
-            <Text style={styles.subtitle}>Here's your cashbook overview</Text>
+            <Text style={[styles.greeting, { color: theme.colors.text }]}>Hello, {user?.displayName}!</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Here's your cashbook overview</Text>
           </View>
           {!loadingInvitations && invitationCount > 0 && (
             <TouchableOpacity
               style={styles.invitationButton}
               onPress={() => navigation.navigate('Invitations')}
             >
-              <Ionicons name="mail" size={24} color="#2563eb" />
-              <View style={styles.invitationBadge}>
-                <Text style={styles.invitationCount}>{invitationCount}</Text>
+              <Ionicons name="mail" size={24} color={theme.colors.primary} />
+              <View style={[styles.invitationBadge, { backgroundColor: theme.colors.error }]}>
+                <Text style={[styles.invitationCount, { color: theme.colors.onError }]}>{invitationCount}</Text>
               </View>
             </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Your Groups</Text>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Groups</Text>
             <TouchableOpacity onPress={() => navigation.navigate('Groups')}>
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={[styles.seeAllText, { color: theme.colors.primary }]}>See All</Text>
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>Loading your groups...</Text>
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your groups...</Text>
             </View>
           ) : groups.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={48} color="#9ca3af" />
-              <Text style={styles.emptyStateText}>No groups yet</Text>
-              <Text style={styles.emptyStateSubtext}>
+              <Ionicons name="people-outline" size={48} color={theme.colors.textTertiary} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>No groups yet</Text>
+              <Text style={[styles.emptyStateSubtext, { color: theme.colors.textTertiary }]}>
                 Create a group to start tracking expenses
               </Text>
               <TouchableOpacity
-                style={styles.createGroupButton}
+                style={[styles.createGroupButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => navigation.navigate('CreateGroup')}
               >
-                <Text style={styles.createGroupButtonText}>Create Group</Text>
+                <Text style={[styles.createGroupButtonText, { color: theme.colors.onPrimary }]}>Create Group</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -194,49 +271,95 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           )}
         </View>
 
-        <View style={styles.section}>
+        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Expenses</Text>
+            <TouchableOpacity
+              onLongPress={async () => {
+                Alert.alert(
+                  'Reset Cleared Expenses',
+                  'This will show all expenses again, including previously cleared ones. Continue?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { 
+                      text: 'Reset', 
+                      style: 'destructive',
+                      onPress: async () => {
+                        await clearStoredClearedExpenses();
+                        await fetchRecentExpenses();
+                        Alert.alert('Success', 'Cleared expenses have been reset!');
+                      }
+                    }
+                  ]
+                );
+              }}
+            >
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Recent Expenses</Text>
+            </TouchableOpacity>
             <View style={styles.sectionActions}>
               {recentExpenses.length > 0 && (
                 <TouchableOpacity
-                  style={styles.clearButton}
+                  style={[styles.clearButton, { backgroundColor: theme.colors.error }]}
                   onPress={clearAllExpenses}
                   disabled={clearingExpenses}
                 >
-                  <Text style={[styles.clearButtonText, clearingExpenses && styles.clearButtonTextDisabled]}>
+                  <Text style={[
+                    styles.clearButtonText,
+                    { color: theme.colors.onError },
+                    clearingExpenses && styles.clearButtonTextDisabled
+                  ]}>
                     {clearingExpenses ? 'Clearing...' : 'Clear All'}
                   </Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity>
-                <Text style={styles.seeAllText}>See All</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
           {recentExpenses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="receipt-outline" size={48} color="#9ca3af" />
-              <Text style={styles.emptyStateText}>No expenses yet</Text>
-              <Text style={styles.emptyStateSubtext}>
+              <Ionicons name="receipt-outline" size={48} color={theme.colors.textTertiary} />
+              <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>No expenses yet</Text>
+              <Text style={[styles.emptyStateSubtext, { color: theme.colors.textTertiary }]}>
                 Add expenses to your groups to see them here
               </Text>
             </View>
           ) : (
+            <>
+              <Text style={[styles.hintText, { color: theme.colors.textTertiary }]}>💡 Long press an expense to remove it</Text>
             <View>
               {recentExpenses.map((expense) => (
-                <View key={expense.id} style={styles.expenseItem}>
+                <TouchableOpacity
+                  key={expense.id}
+                  style={[
+                    styles.expenseItem,
+                    { borderBottomColor: theme.colors.borderLight }
+                  ]}
+                  onLongPress={() => {
+                    Alert.alert(
+                      'Clear Expense',
+                      `Remove "${expense.title}" from recent expenses?`,
+                      [
+                        { text: 'Cancel', style: 'cancel' },
+                        { 
+                          text: 'Clear', 
+                          style: 'destructive',
+                          onPress: () => clearSingleExpense(expense.id)
+                        }
+                      ]
+                    );
+                  }}
+                  activeOpacity={0.7}
+                >
                   <View style={styles.expenseInfo}>
-                    <Text style={styles.expenseTitle}>{expense.title}</Text>
-                    <Text style={styles.expenseCategory}>{expense.category}</Text>
+                    <Text style={[styles.expenseTitle, { color: theme.colors.text }]}>{expense.title}</Text>
+                    <Text style={[styles.expenseCategory, { color: theme.colors.textSecondary }]}>{expense.category}</Text>
                   </View>
-                  <Text style={styles.expenseAmount}>
+                  <Text style={[styles.expenseAmount, { color: theme.colors.error }]}>
                     {formatAmount(expense.amount)}
                   </Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
+            </>
           )}
         </View>
       </ScrollView>
@@ -247,13 +370,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
   },
   header: {
     padding: 20,
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -261,12 +381,10 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
   },
   invitationButton: {
     position: 'relative',
@@ -275,7 +393,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -8,
     right: -8,
-    backgroundColor: '#dc2626',
     borderRadius: 10,
     width: 20,
     height: 20,
@@ -284,13 +401,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   invitationCount: {
-    color: '#ffffff',
     fontSize: 12,
     fontWeight: 'bold',
   },
   section: {
     margin: 20,
-    backgroundColor: '#ffffff',
     borderRadius: 12,
     padding: 16,
     shadowColor: '#000',
@@ -311,10 +426,8 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
   },
   seeAllText: {
-    color: '#2563eb',
     fontWeight: '500',
   },
   emptyState: {
@@ -324,28 +437,23 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#6b7280',
     marginTop: 12,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#9ca3af',
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 16,
   },
   createButton: {
-    backgroundColor: '#2563eb',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   createButtonText: {
-    color: '#ffffff',
     fontWeight: '600',
   },
   groupCard: {
-    backgroundColor: '#f8fafc',
     padding: 16,
     borderRadius: 8,
     marginRight: 12,
@@ -360,16 +468,13 @@ const styles = StyleSheet.create({
   groupName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
     marginBottom: 4,
   },
   memberCount: {
     fontSize: 12,
-    color: '#6b7280',
   },
   groupDescription: {
     fontSize: 14,
-    color: '#4b5563',
     marginTop: 4,
   },
   expenseItem: {
@@ -378,7 +483,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
   },
   expenseInfo: {
     flex: 1,
@@ -386,26 +490,21 @@ const styles = StyleSheet.create({
   expenseTitle: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1f2937',
   },
   expenseCategory: {
     fontSize: 14,
-    color: '#6b7280',
     marginTop: 2,
   },
   expenseAmount: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#dc2626',
   },
   createGroupButton: {
-    backgroundColor: '#2563eb',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   createGroupButtonText: {
-    color: '#ffffff',
     fontWeight: '600',
   },
   loadingContainer: {
@@ -414,24 +513,27 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#6b7280',
   },
   clearButton: {
-    backgroundColor: '#ef4444',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
     marginRight: 10,
   },
   clearButtonText: {
-    color: '#ffffff',
     fontWeight: '600',
   },
   clearButtonTextDisabled: {
-    color: '#d1d5db',
+    opacity: 0.5,
   },
   sectionActions: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  hintText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
 }); 

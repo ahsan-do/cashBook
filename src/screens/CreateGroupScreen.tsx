@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { groupService } from '../services/groupService';
 import { testFirestoreAccess } from '../services/firebase';
 
@@ -22,6 +23,7 @@ interface CreateGroupScreenProps {
 
 export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -64,25 +66,33 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#ffffff' }}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
+        style={styles.keyboardContainer}
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <Text style={styles.title}>Create New Group</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Create New Group</Text>
+            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
               Set up a group to start tracking expenses together
             </Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Group Name *</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Group Name *</Text>
               <TextInput
-                style={styles.input}
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
                 placeholder="e.g., Hostel Group, Office Group"
+                placeholderTextColor={theme.colors.textTertiary}
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
@@ -90,10 +100,19 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Description</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Description</Text>
               <TextInput
-                style={[styles.input, styles.textArea]}
+                style={[
+                  styles.input,
+                  styles.textArea,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
                 placeholder="Describe the purpose of this group"
+                placeholderTextColor={theme.colors.textTertiary}
                 value={description}
                 onChangeText={setDescription}
                 multiline
@@ -102,11 +121,17 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
             </View>
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[
+                styles.createButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  opacity: loading ? 0.6 : 1,
+                },
+              ]}
               onPress={handleCreateGroup}
               disabled={loading}
             >
-              <Text style={styles.buttonText}>
+              <Text style={[styles.createButtonText, { color: theme.colors.onPrimary }]}>
                 {loading ? 'Creating...' : 'Create Group'}
               </Text>
             </TouchableOpacity>
@@ -120,7 +145,9 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+  },
+  keyboardContainer: {
+    flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
@@ -132,12 +159,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#1f2937',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#6b7280',
   },
   form: {
     gap: 20,
@@ -146,35 +171,27 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: '#374151',
     marginBottom: 8,
     fontWeight: '500',
     fontSize: 16,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
     borderRadius: 8,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    color: '#1f2937',
     fontSize: 16,
   },
   textArea: {
     height: 80,
     textAlignVertical: 'top',
   },
-  button: {
-    backgroundColor: '#2563eb',
+  createButton: {
     paddingVertical: 16,
     borderRadius: 8,
     marginTop: 24,
   },
-  buttonDisabled: {
-    opacity: 0.5,
-  },
-  buttonText: {
-    color: '#ffffff',
+  createButtonText: {
     textAlign: 'center',
     fontWeight: '600',
     fontSize: 18,
