@@ -36,7 +36,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     try {
       await signIn(normalizedEmail, password);
     } catch (error: any) {
-      Alert.alert('Could Not Sign In', error?.message || 'Please check your details and try again.');
+      const isEmailNotConfirmed =
+        error?.code === 'email_not_confirmed' || /email not confirmed/i.test(error?.message || '');
+      if (isEmailNotConfirmed) {
+        Alert.alert(
+          'Confirm Your Email',
+          'Your email address has not been confirmed. Check your inbox, or resend the confirmation email.',
+          [
+            { text: 'Not Now', style: 'cancel' },
+            {
+              text: 'Resend Email',
+              onPress: () => navigation.navigate('EmailVerification', { email: normalizedEmail }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Could Not Sign In', error?.message || 'Please check your details and try again.');
+      }
     } finally {
       setLoading(false);
     }

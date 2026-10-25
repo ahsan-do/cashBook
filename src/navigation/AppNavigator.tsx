@@ -22,8 +22,8 @@ import { ThemeSettingsScreen } from '../screens/ThemeSettingsScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const AuthStack = () => (
-  <Stack.Navigator screenOptions={{ headerShown: false }}>
+const AuthStack: React.FC<{ initialRouteName: string }> = ({ initialRouteName }) => (
+  <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="SignUp" component={SignUpScreen} />
     <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
@@ -85,9 +85,9 @@ const MainStack = () => (
 );
 
 export const AppNavigator = () => {
-  const { session, isEmailVerified, loading } = useAuth();
+  const { session, isEmailVerified, authInitializing, authLinkMessage } = useAuth();
 
-  if (loading) {
+  if (authInitializing) {
     return <LoadingScreen />;
   }
 
@@ -98,7 +98,10 @@ export const AppNavigator = () => {
       ) : session ? (
         <VerificationStack />
       ) : (
-        <AuthStack />
+        <AuthStack
+          key={authLinkMessage ? 'auth-link-error' : 'signed-out'}
+          initialRouteName={authLinkMessage ? 'EmailVerification' : 'Login'}
+        />
       )}
     </NavigationContainer>
   );

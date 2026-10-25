@@ -27,12 +27,15 @@ interface AuthContextType {
   authUser: SupabaseUser | null;
   firebaseUser: LegacyVerificationUser | null;
   isEmailVerified: boolean;
+  authInitializing: boolean;
+  authLinkMessage: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string) => Promise<boolean>;
   logout: () => Promise<void>;
-  sendEmailVerification: () => Promise<void>;
-  resendVerificationEmail: () => Promise<void>;
+  sendEmailVerification: (email?: string) => Promise<void>;
+  resendVerificationEmail: (email?: string) => Promise<void>;
+  clearAuthLinkMessage: () => void;
   checkEmailVerification: () => Promise<boolean>;
   reloadUser: () => Promise<void>;
 }
@@ -72,6 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authInitializing, setAuthInitializing] = useState(true);
+  const [authLinkMessage, setAuthLinkMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -94,12 +99,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (path !== 'auth/callback') return;
 
       const params = parsed.queryParams ?? {};
-      const code = queryValue(params.code);
-      const tokenHash = queryValue(params.token_hash);
-      const otpType = queryValue(params.type);
-      const callbackError = queryValue(params.error_description) ?? queryValue(params.error);
+      const fragmentParams = url.split('#')[1]?.split('&') ?? [];
+      const getParam = (key: string) => {
+        const fromQuery = queryValue(params[key]);
+        if (fromQuery) return fromQuery;
+        const pair = fragmentParams.find((part) => part.split('=')[0] === key);
+        if (!pair) return undefined;
+        try {
+          return decodeURIComponent((pair.split('=').slice(1).join('=') || '').replace(/\+/g, ' '));
+        } catch {
+          return pair.split('=').slice(1).join('=');
+        }
+      };
+      const code = getParam('code');
+      const tokenHash = getParam('token_hash');
+      const otpType = getParam('type');
+      const callbackError = getParam('error_description') ?? getParam('error') ?? getParam('error_code');
       if (callbackError) {
-        throw new Error(callbackError.replace(/\+/g, ' '));
+        const errorCode = getParam('error_code');
+        const isExpired = errorCode === 'otp_expired' || /expired|already been used|invalid.*link/i.test(callbackError);
+        setAuthLinkMessage(
+          isExpired
+            ? 'This confirmation link has expired or has already been used. Request a new confirmation email to continue.'
+            : `The confirmation link could not be completed: ${callbackError.replace(/\+/g, ' ')}`
+        );
+        return;
       }
 
       if (!code && tokenHash && otpType && supportedOtpTypes.has(otpType as EmailOtpType)) {
@@ -107,14 +131,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           token_hash: tokenHash,
           type: otpType as EmailOtpType,
         });
-        if (error) throw error;
+        if (error) {
+          setAuthLinkMessage('This confirmation link has expired or has already been used. Request a new confirmation email to continue.');
+          return;
+        }
         applySession(data.session);
         return;
       }
 
       if (code) {
         const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) throw error;
+        if (error) {
+          setAuthLinkMessage('This confirmation link has expired or has already been used. Request a new confirmation email to continue.');
+          return;
+        }
         applySession(data.session);
       }
     };
@@ -125,6 +155,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const linkListener = Linking.addEventListener('url', ({ url }) => {
       void completeEmailConfirmation(url).catch((error: unknown) => {
         console.error('Unable to complete the Supabase email confirmation link:', error);
+        setAuthLinkMessage('The confirmation link could not be completed. Request a new confirmation email and try again.');
       });
     });
 
@@ -141,7 +172,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Unable to restore the Supabase session:', error);
         applySession(null);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          setAuthInitializing(false);
+        }
       }
     };
 
@@ -187,6 +221,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(data.session);
         setAuthUser(data.session.user);
       }
+      return Boolean(data.session);
     });
 
   const logout = async () =>
@@ -196,9 +231,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setPendingEmail(null);
     });
 
-  const resendVerificationEmail = async () =>
+  const resendVerificationEmail = async (requestedEmail?: string) =>
     runWithLoading(async () => {
-      const email = authUser?.email ?? pendingEmail;
+      const email = requestedEmail?.trim().toLowerCase() ?? authUser?.email ?? pendingEmail;
       if (!email) throw new Error('No email address is available for verification.');
       const { error } = await supabase.auth.resend({
         type: 'signup',
@@ -230,6 +265,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
   const isEmailVerified = Boolean(authUser?.email_confirmed_at);
+  const clearAuthLinkMessage = () => setAuthLinkMessage(null);
   const user = useMemo(() => (authUser ? appUserFromAuthUser(authUser) : null), [authUser]);
   const firebaseUser = useMemo(
     () =>
@@ -245,12 +281,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authUser,
     firebaseUser,
     isEmailVerified,
+    authInitializing,
+    authLinkMessage,
     loading,
     signIn,
     signUp,
     logout,
     sendEmailVerification: resendVerificationEmail,
     resendVerificationEmail,
+    clearAuthLinkMessage,
     checkEmailVerification,
     reloadUser,
   };

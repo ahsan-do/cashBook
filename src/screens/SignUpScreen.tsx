@@ -53,8 +53,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await signUp(normalizedEmail, password, normalizedName);
-      navigation.navigate('EmailVerification', { email: normalizedEmail });
+      const hasSession = await signUp(normalizedEmail, password, normalizedName);
+      if (!hasSession) {
+        navigation.navigate('EmailVerification', { email: normalizedEmail });
+      }
     } catch (error: any) {
       Alert.alert('Could Not Create Account', error?.message || 'Please try again.');
     } finally {

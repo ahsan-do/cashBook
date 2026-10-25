@@ -26,10 +26,13 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
     checkEmailVerification,
     reloadUser,
     logout,
+    authLinkMessage,
+    clearAuthLinkMessage,
   } = useAuth();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const [showLinkError, setShowLinkError] = useState(true);
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -79,8 +82,9 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   const handleResendEmail = async () => {
     setIsResending(true);
     try {
-      await resendVerificationEmail();
+      await resendVerificationEmail(email);
       setCooldownSeconds(30);
+      setShowLinkError(false);
       Alert.alert('Email Sent', 'A new confirmation email has been sent.');
     } catch (error: any) {
       Alert.alert('Could Not Send Email', error?.message || 'Please try again.');
@@ -91,6 +95,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
 
   const handleBackToLogin = async () => {
     try {
+      clearAuthLinkMessage();
       await logout();
     } catch (error: any) {
       Alert.alert('Could Not Log Out', error?.message || 'Please try again.');
@@ -104,26 +109,30 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
           <Ionicons name="mail-outline" size={80} color="#2563eb" />
         </View>
 
-        <Text style={styles.title}>Verify Your Email</Text>
+        <Text style={styles.title}>{session ? 'Verify Your Email' : 'Check Your Email'}</Text>
         <Text style={styles.subtitle}>We've sent a verification email to:</Text>
         <Text style={styles.email}>{email || 'your email address'}</Text>
 
         <Text style={styles.description}>
-          Please check your inbox and click the verification link to activate your account.
+          {showLinkError && authLinkMessage
+            ? authLinkMessage
+            : 'Please check your inbox and click the verification link to activate your account.'}
         </Text>
 
         <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            style={[styles.button, styles.primaryButton]}
-            onPress={handleCheckVerification}
-            disabled={isVerifying}
-          >
-            {isVerifying ? (
-              <ActivityIndicator color="#ffffff" size="small" />
-            ) : (
-              <Text style={styles.buttonText}>I've Verified My Email</Text>
-            )}
-          </TouchableOpacity>
+          {session && (
+            <TouchableOpacity
+              style={[styles.button, styles.primaryButton]}
+              onPress={handleCheckVerification}
+              disabled={isVerifying}
+            >
+              {isVerifying ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Text style={styles.buttonText}>I've Verified My Email</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
