@@ -20,7 +20,7 @@ interface ProfileScreenProps {
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
-  const { user, firebaseUser, logout, sendEmailVerification } = useAuth();
+  const { user, isEmailVerified, logout, sendEmailVerification } = useAuth();
   const { selectedCurrency, currencies } = useCurrency();
   const { theme, themeMode } = useTheme();
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
@@ -103,15 +103,15 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const menuItems = [
     {
       title: 'Email Verification',
-      icon: firebaseUser?.emailVerified ? 'checkmark-circle' : 'mail-unread-outline',
-      subtitle: firebaseUser?.emailVerified 
+      icon: isEmailVerified ? 'checkmark-circle' : 'mail-unread-outline',
+      subtitle: isEmailVerified
         ? 'Email verified' 
         : 'Email not verified',
-      onPress: firebaseUser?.emailVerified 
+      onPress: isEmailVerified
         ? undefined 
         : handleResendVerification,
       loading: isResendingVerification,
-      color: firebaseUser?.emailVerified ? theme.colors.success : theme.colors.error,
+      color: isEmailVerified ? theme.colors.success : theme.colors.error,
     },
     {
       title: 'Theme',
@@ -328,4 +328,4 @@ const styles = StyleSheet.create({
   versionText: {
     fontSize: 14,
   },
-}); 
+});

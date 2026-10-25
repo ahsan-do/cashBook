@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  AppState,
   View,
   Text,
   TouchableOpacity,
@@ -16,81 +17,84 @@ interface EmailVerificationScreenProps {
   route: any;
 }
 
-export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({ navigation, route }) => {
-  const { user, firebaseUser, sendEmailVerification, checkEmailVerification, reloadUser } = useAuth();
+export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route }) => {
+  const {
+    user,
+    session,
+    isEmailVerified,
+    resendVerificationEmail,
+    checkEmailVerification,
+    reloadUser,
+    logout,
+  } = useAuth();
   const [isVerifying, setIsVerifying] = useState(false);
   const [isResending, setIsResending] = useState(false);
-  const [verificationChecked, setVerificationChecked] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
-  const { email } = route.params || {};
+  const email = route.params?.email || user?.email;
 
   useEffect(() => {
-    // Check if user is already verified
-    if (firebaseUser?.emailVerified) {
-      navigation.replace('MainTabs');
-    }
-  }, [firebaseUser, navigation]);
+    if (!cooldownSeconds) return;
+    const timer = setInterval(() => {
+      setCooldownSeconds((remaining) => Math.max(remaining - 1, 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [cooldownSeconds]);
+
+  useEffect(() => {
+    // AuthContext consumes the confirmation URL. Refresh when the app resumes
+    // so a confirmation completed in the browser is reflected in auth state.
+    const refreshIfSignedIn = () => {
+      if (sessionRef.current) void reloadUser().catch(() => undefined);
+    };
+    refreshIfSignedIn();
+    const listener = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshIfSignedIn();
+    });
+    return () => listener.remove();
+  }, []);
 
   const handleCheckVerification = async () => {
     setIsVerifying(true);
     try {
       await reloadUser();
-      const isVerified = await checkEmailVerification();
-      
-      if (isVerified) {
-        Alert.alert(
-          'Email Verified!',
-          'Your email has been successfully verified. You can now use all features of the app.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => navigation.replace('MainTabs'),
-            },
-          ]
-        );
+      const verified = await checkEmailVerification();
+      if (verified || isEmailVerified) {
+        Alert.alert('Email Verified', 'Your email is confirmed. You can now use Cashbook.');
       } else {
         Alert.alert(
           'Not Verified Yet',
-          'Your email has not been verified yet. Please check your inbox and click the verification link, then try again.',
-          [{ text: 'OK' }]
+          'Open the confirmation link from your email, then return here and check again.'
         );
       }
     } catch (error: any) {
-      Alert.alert('Error', `Failed to check verification: ${error.message}`);
+      Alert.alert('Could Not Check Email', error?.message || 'Please try again.');
     } finally {
       setIsVerifying(false);
-      setVerificationChecked(true);
     }
   };
 
   const handleResendEmail = async () => {
     setIsResending(true);
     try {
-      await sendEmailVerification();
-      Alert.alert(
-        'Email Sent',
-        'A new verification email has been sent to your inbox. Please check your email and click the verification link.',
-        [{ text: 'OK' }]
-      );
+      await resendVerificationEmail();
+      setCooldownSeconds(30);
+      Alert.alert('Email Sent', 'A new confirmation email has been sent.');
     } catch (error: any) {
-      Alert.alert('Error', `Failed to send verification email: ${error.message}`);
+      Alert.alert('Could Not Send Email', error?.message || 'Please try again.');
     } finally {
       setIsResending(false);
     }
   };
 
-  const handleSkipForNow = () => {
-    Alert.alert(
-      'Skip Verification',
-      'You can verify your email later from the Profile screen. Some features may be limited until you verify your email.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Skip',
-          onPress: () => navigation.replace('MainTabs'),
-        },
-      ]
-    );
+  const handleBackToLogin = async () => {
+    try {
+      await logout();
+    } catch (error: any) {
+      Alert.alert('Could Not Log Out', error?.message || 'Please try again.');
+    }
   };
 
   return (
@@ -101,10 +105,8 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
         </View>
 
         <Text style={styles.title}>Verify Your Email</Text>
-        <Text style={styles.subtitle}>
-          We've sent a verification email to:
-        </Text>
-        <Text style={styles.email}>{email || user?.email}</Text>
+        <Text style={styles.subtitle}>We've sent a verification email to:</Text>
+        <Text style={styles.email}>{email || 'your email address'}</Text>
 
         <Text style={styles.description}>
           Please check your inbox and click the verification link to activate your account.
@@ -126,24 +128,19 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
           <TouchableOpacity
             style={[styles.button, styles.secondaryButton]}
             onPress={handleResendEmail}
-            disabled={isResending}
+            disabled={isResending || cooldownSeconds > 0}
           >
             {isResending ? (
               <ActivityIndicator color="#2563eb" size="small" />
             ) : (
               <Text style={[styles.buttonText, styles.secondaryButtonText]}>
-                Resend Verification Email
+                {cooldownSeconds > 0 ? `Resend Email (${cooldownSeconds}s)` : 'Resend Email'}
               </Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.button, styles.skipButton]}
-            onPress={handleSkipForNow}
-          >
-            <Text style={[styles.buttonText, styles.skipButtonText]}>
-              Skip for Now
-            </Text>
+          <TouchableOpacity style={[styles.button, styles.backButton]} onPress={handleBackToLogin}>
+            <Text style={[styles.buttonText, styles.backButtonText]}>Back to Login</Text>
           </TouchableOpacity>
         </View>
 
@@ -219,7 +216,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#2563eb',
   },
-  skipButton: {
+  backButton: {
     backgroundColor: 'transparent',
   },
   buttonText: {
@@ -230,7 +227,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: '#2563eb',
   },
-  skipButtonText: {
+  backButtonText: {
     color: '#6b7280',
   },
   tipsContainer: {
@@ -250,4 +247,4 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-}); 
+});

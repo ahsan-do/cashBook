@@ -26,6 +26,13 @@ const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
     <Stack.Screen name="SignUp" component={SignUpScreen} />
+    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
+  </Stack.Navigator>
+);
+
+const VerificationStack = () => (
+  <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
   </Stack.Navigator>
 );
 
@@ -73,13 +80,12 @@ const MainStack = () => (
     <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
     <Stack.Screen name="Invitations" component={InvitationsScreen} />
     <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} />
-    <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
     <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />
   </Stack.Navigator>
 );
 
 export const AppNavigator = () => {
-  const { user, loading } = useAuth();
+  const { session, isEmailVerified, loading } = useAuth();
 
   if (loading) {
     return <LoadingScreen />;
@@ -87,7 +93,13 @@ export const AppNavigator = () => {
 
   return (
     <NavigationContainer>
-      {user ? <MainStack /> : <AuthStack />}
+      {session && isEmailVerified ? (
+        <MainStack />
+      ) : session ? (
+        <VerificationStack />
+      ) : (
+        <AuthStack />
+      )}
     </NavigationContainer>
   );
-}; 
+};

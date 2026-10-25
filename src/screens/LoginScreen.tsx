@@ -26,16 +26,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      Alert.alert('Error', 'Please enter your email and password.');
       return;
     }
 
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signIn(normalizedEmail, password);
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Could Not Sign In', error?.message || 'Please check your details and try again.');
     } finally {
       setLoading(false);
     }
@@ -192,4 +193,4 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
   },
-}); 
+});

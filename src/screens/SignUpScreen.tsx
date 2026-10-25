@@ -28,8 +28,16 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
 
   const handleSignUp = async () => {
-    if (!displayName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+    const normalizedName = displayName.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedName) {
+      Alert.alert('Error', 'Please enter your name.');
+      return;
+    }
+
+    if (!normalizedEmail || !password || !confirmPassword) {
+      Alert.alert('Error', 'Please enter your email and complete both password fields.');
       return;
     }
 
@@ -45,11 +53,10 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 
     setLoading(true);
     try {
-      await signUp(email, password, displayName);
-      // Navigate to email verification screen
-      navigation.navigate('EmailVerification', { email });
+      await signUp(normalizedEmail, password, normalizedName);
+      navigation.navigate('EmailVerification', { email: normalizedEmail });
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert('Could Not Create Account', error?.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -246,4 +253,4 @@ const styles = StyleSheet.create({
   keyboardContainer: {
     flex: 1,
   },
-}); 
+});
