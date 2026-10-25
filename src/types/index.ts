@@ -7,6 +7,67 @@ export interface User {
   updatedAt: Date;
 }
 
+export type BookMemberRole = 'owner' | 'member';
+export type TransactionType = 'cash_in' | 'cash_out';
+export type InvitationStatus = 'pending' | 'accepted' | 'declined';
+
+/** Application model for public.books; timestamps are ISO-8601 strings. */
+export interface Book {
+  id: string;
+  name: string;
+  description: string | null;
+  currencyCode: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+/** Application model for public.transactions and book_transaction_page rows. */
+export interface Transaction {
+  id: string;
+  bookId: string;
+  title: string;
+  amount: number;
+  type: TransactionType;
+  category: string;
+  description: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Business date from the database's entry_date column (YYYY-MM-DD). */
+  entryDate: string;
+  /** Supplied by book_transaction_page, calculated across all active rows. */
+  /** null for a newly inserted row until book_transaction_page returns it. */
+  runningBalance: number | null;
+}
+
+export interface Invitation {
+  id: string;
+  bookId: string;
+  invitedEmail: string;
+  invitedBy: string;
+  status: InvitationStatus;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+}
+
+export interface PendingInvitation {
+  id: string;
+  bookName: string;
+  inviterDisplayName: string;
+  expiresAt: string;
+}
+
+export interface Member {
+  bookId: string;
+  userId: string;
+  displayName: string;
+  role: BookMemberRole;
+  joinedAt: string;
+}
+
 export interface Group {
   id: string;
   name: string;
@@ -127,4 +188,4 @@ export interface ThemeContextType {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => void;
   toggleTheme: () => void;
-} 
+}
