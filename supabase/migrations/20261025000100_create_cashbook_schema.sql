@@ -120,7 +120,7 @@ create function public.require_verified_user()
 returns uuid
 language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
