@@ -1,9 +1,15 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(47);
+select plan(60);
 
-create temporary table test_ids (book_id uuid, invitation_id uuid);
+create temporary table test_ids (
+  book_id uuid,
+  book_b_id uuid,
+  invitation_id uuid,
+  immutable_invitation_id uuid,
+  opening_created_at timestamptz
+);
 grant select, insert, update on test_ids to authenticated;
 
 -- Test users are inserted as the database owner; the auth trigger provisions
@@ -40,6 +46,8 @@ insert into public.invitations (book_id, invited_email, invited_by)
 update test_ids set invitation_id = (select id from public.invitations where invited_email = 'member@example.test');
 insert into public.transactions (book_id, title, amount, type, created_by)
   values ((select book_id from test_ids), 'Opening funds', 1000.00, 'cash_in', auth.uid());
+select public.create_book('Second ledger', 'PKR', null);
+update test_ids set book_b_id = (select id from public.books where name = 'Second ledger');
 
 -- Unverified accounts cannot read book data or write transactions.
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","role":"authenticated","email":"unverified@example.test"}', true);
@@ -77,6 +85,10 @@ select extensions.ok(
   and exists (select 1 from public.invitations where id = (select invitation_id from test_ids) and status = 'accepted'),
   'invited user accepts atomically'
 );
+-- Seed the second-book membership as the database owner. The later update test
+-- temporarily permits updates so the immutable trigger, not RLS, must reject it.
+insert into public.book_members (book_id, user_id, role)
+  values ((select book_b_id from test_ids), '10000000-0000-0000-0000-000000000002', 'member');
 set local role authenticated;
 select extensions.is(
   (select count(*)::integer from public.transactions where book_id = (select book_id from test_ids)),
@@ -199,22 +211,7 @@ select extensions.ok(
 );
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
-\set ON_ERROR_STOP off
-savepoint owner_creator_change_attempt;
-update public.transactions set created_by = '10000000-0000-0000-0000-000000000002'
-  where book_id = (select book_id from test_ids) and title = 'Opening funds';
-\if :ERROR
-  rollback to savepoint owner_creator_change_attempt;
-\else
-  release savepoint owner_creator_change_attempt;
-\endif
 reset role;
-\set ON_ERROR_STOP on
-select extensions.ok(
-  (select created_by = '10000000-0000-0000-0000-000000000001'
-   from public.transactions where title = 'Opening funds'),
-  'owner cannot change a transaction creator'
-);
 select extensions.ok(
   not exists (
     select 1 from pg_policies
@@ -360,6 +357,105 @@ select extensions.ok(
   exists (select 1 from pg_constraint where conrelid = 'public.transactions'::regclass and conname = 'transactions_description_length'),
   'transaction description is limited to 1000 characters'
 );
+
+-- These temporary permissive policies model an update that RLS would allow.
+-- They isolate the triggers: with a trigger removed, each UPDATE would succeed
+-- and the rejection/unchanged assertions below would fail.
+create policy test_allow_transaction_update on public.transactions
+  for update to authenticated using (true) with check (true);
+create policy test_allow_book_member_update on public.book_members
+  for update to authenticated using (true) with check (true);
+create policy test_allow_invitation_update on public.invitations
+  for update to authenticated using (true) with check (true);
+grant update on public.book_members, public.invitations to authenticated;
+update test_ids set opening_created_at = (
+  select created_at from public.transactions where title = 'Opening funds'
+);
+insert into public.invitations (book_id, invited_email, invited_by)
+  values ((select book_id from test_ids), 'member@example.test', '10000000-0000-0000-0000-000000000001');
+update test_ids set immutable_invitation_id = (
+  select id from public.invitations where book_id = (select book_id from test_ids)
+    and invited_email = 'member@example.test' and status = 'pending'
+);
+select extensions.ok(
+  exists (select 1 from public.transactions t
+    join public.book_members a on a.book_id = t.book_id and a.user_id = t.created_by
+    join public.book_members b on b.book_id = (select book_b_id from test_ids) and b.user_id = t.created_by
+    where t.title = 'Opening funds' and t.book_id = (select book_id from test_ids)),
+  'transaction creator is a member of both source and destination books'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.throws_like(
+  $$update public.transactions set created_at = created_at - interval '30 days'
+    where book_id = (select book_id from test_ids) and title = 'Opening funds'$$,
+  '%immutable%', 'creator cannot backdate created_at; trigger error mentions immutable'
+);
+select extensions.is(
+  (select created_at from public.transactions where title = 'Opening funds'),
+  (select opening_created_at from test_ids),
+  'created_at remains unchanged after the rejected backdate'
+);
+select extensions.throws_like(
+  $$update public.transactions set book_id = (select book_b_id from test_ids)
+    where book_id = (select book_id from test_ids) and title = 'Opening funds'$$,
+  '%immutable%', 'creator cannot move a transaction to another book; trigger error mentions immutable'
+);
+select extensions.is(
+  (select book_id from public.transactions where title = 'Opening funds'),
+  (select book_id from test_ids),
+  'book_id remains unchanged after the rejected move'
+);
+select extensions.throws_like(
+  $$update public.transactions set created_by = '10000000-0000-0000-0000-000000000002'
+    where title = 'Opening funds'$$,
+  '%immutable%', 'creator cannot change created_by when RLS permits it; trigger error mentions immutable'
+);
+select extensions.is(
+  (select created_by from public.transactions where title = 'Opening funds'),
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  'created_by remains unchanged after the rejected change'
+);
+select extensions.ok(
+  pg_get_functiondef('public.prevent_transaction_identity_change()'::regprocedure) ilike '%immutable%',
+  'transaction trigger raises an immutable-fields error'
+);
+select extensions.throws_like(
+  $$update public.book_members set user_id = '10000000-0000-0000-0000-000000000003'
+    where book_id = (select book_b_id from test_ids) and user_id = '10000000-0000-0000-0000-000000000001'$$,
+  '%immutable%', 'book member identity update is rejected by its trigger'
+);
+select extensions.is(
+  (select user_id from public.book_members where book_id = (select book_b_id from test_ids)
+    and user_id = '10000000-0000-0000-0000-000000000001'),
+  '10000000-0000-0000-0000-000000000001'::uuid,
+  'book_members.user_id remains unchanged after the rejected change'
+);
+select extensions.ok(
+  pg_get_functiondef('public.prevent_book_member_identity_change()'::regprocedure) ilike '%immutable%',
+  'book member trigger raises an immutable-fields error'
+);
+select extensions.throws_like(
+  $$update public.invitations set invited_email = 'outsider@example.test'
+    where id = (select immutable_invitation_id from test_ids)$$,
+  '%immutable%', 'invitation email update is rejected by its trigger'
+);
+select extensions.is(
+  (select invited_email from public.invitations where id = (select immutable_invitation_id from test_ids)),
+  'member@example.test',
+  'invitations.invited_email remains unchanged after the rejected change'
+);
+select extensions.ok(
+  pg_get_functiondef('public.prevent_invitation_identity_change()'::regprocedure) ilike '%immutable%',
+  'invitation trigger raises an immutable-fields error'
+);
+
+reset role;
+drop policy test_allow_transaction_update on public.transactions;
+drop policy test_allow_book_member_update on public.book_members;
+drop policy test_allow_invitation_update on public.invitations;
+revoke update on public.book_members, public.invitations from authenticated;
 
 select * from finish();
 rollback;
