@@ -14,18 +14,10 @@ const supportedOtpTypes = new Set<EmailOtpType>([
   'email',
 ]);
 
-// Temporary compatibility shape for screens that previously read
-// firebaseUser.emailVerified. Firebase itself is not used by this context.
-interface LegacyVerificationUser {
-  uid: string;
-  emailVerified: boolean;
-}
-
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   authUser: SupabaseUser | null;
-  firebaseUser: LegacyVerificationUser | null;
   isEmailVerified: boolean;
   authInitializing: boolean;
   authLinkMessage: string | null;
@@ -267,19 +259,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isEmailVerified = Boolean(authUser?.email_confirmed_at);
   const clearAuthLinkMessage = () => setAuthLinkMessage(null);
   const user = useMemo(() => (authUser ? appUserFromAuthUser(authUser) : null), [authUser]);
-  const firebaseUser = useMemo(
-    () =>
-      authUser
-        ? { uid: authUser.id, emailVerified: Boolean(authUser.email_confirmed_at) }
-        : null,
-    [authUser]
-  );
-
   const value: AuthContextType = {
     user,
     session,
     authUser,
-    firebaseUser,
     isEmailVerified,
     authInitializing,
     authLinkMessage,
