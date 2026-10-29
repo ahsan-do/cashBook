@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -17,8 +17,23 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Group, User } from '../types';
-import { groupService, getUserDisplayNames } from '../services/groupService';
+import { Book, Group, Member } from '../types';
+import { bookService } from '../services/bookService';
+
+// TODO: Remove this adapter when GroupDetailsScreen consumes the Book model.
+const toLegacyGroupForGroupDetails = (book: Book, members: Member[], currentUserId: string): Group => ({
+  id: book.id,
+  name: book.name,
+  description: book.description ?? undefined,
+  createdBy: book.memberRole === 'owner'
+    ? currentUserId
+    : book.createdBy === currentUserId
+      ? ''
+      : book.createdBy,
+  members: members.map((member) => member.userId),
+  createdAt: new Date(book.createdAt),
+  updatedAt: new Date(book.updatedAt),
+});
 
 interface GroupsScreenProps {
   navigation: any;
@@ -27,143 +42,163 @@ interface GroupsScreenProps {
 export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   // Edit/Delete state
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingGroup, setEditingGroup] = useState<Group | null>(null);
-  const [editGroupName, setEditGroupName] = useState('');
-  const [editGroupDescription, setEditGroupDescription] = useState('');
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [editBookName, setEditBookName] = useState('');
+  const [editBookDescription, setEditBookDescription] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [deletingGroup, setDeletingGroup] = useState<Group | null>(null);
+  const [deletingBook, setDeletingBook] = useState<Book | null>(null);
 
   // Member details state
   const [showMemberDetails, setShowMemberDetails] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<Group | null>(null);
-  const [memberDetails, setMemberDetails] = useState<Record<string, string>>({});
+  const [selectedBook, setSelectedBook] = useState<Book | null>(null);
+  const [memberDetails, setMemberDetails] = useState<Member[]>([]);
+  const [membersCache, setMembersCache] = useState<Record<string, Member[]>>({});
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberError, setMemberError] = useState<string | null>(null);
 
-  const fetchGroups = async () => {
-    if (!user) return;
-    
-    try {
-      console.log('Fetching groups for user:', user.id);
-      const userGroups = await groupService.getUserGroups(user.id);
-      console.log('Fetched groups:', userGroups);
-      setGroups(userGroups);
-    } catch (error: any) {
-      console.error('Error fetching groups:', error);
-    } finally {
+  const fetchBooks = useCallback(async (showLoading = true) => {
+    if (!user) {
+      setBooks([]);
       setLoading(false);
+      return;
     }
-  };
-
-  useEffect(() => {
-    fetchGroups();
+    if (showLoading) setLoading(true);
+    setLoadError(null);
+    setMembersCache({});
+    try {
+      setBooks(await bookService.listMyBooks(user.id));
+    } catch (error: any) {
+      setLoadError(error?.message || 'Could not load your books. Please try again.');
+    } finally {
+      if (showLoading) setLoading(false);
+    }
   }, [user]);
 
-  // Refresh groups when screen comes into focus
+  // Refresh books when the screen comes into focus.
   useFocusEffect(
-    React.useCallback(() => {
-      fetchGroups();
-    }, [user])
+    useCallback(() => {
+      void fetchBooks();
+    }, [fetchBooks])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchGroups();
-    setRefreshing(false);
+    try {
+      await fetchBooks(false);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
-  // Group management functions
-  const handleEditGroup = (group: Group) => {
-    setEditingGroup(group);
-    setEditGroupName(group.name);
-    setEditGroupDescription(group.description || '');
+  const handleEditBook = (book: Book) => {
+    setEditingBook(book);
+    setEditBookName(book.name);
+    setEditBookDescription(book.description || '');
     setShowEditModal(true);
   };
 
-  const handleUpdateGroup = async () => {
-    if (!editingGroup || !editGroupName.trim()) {
+  const handleUpdateBook = async () => {
+    if (!editingBook || !editBookName.trim()) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: 'Group name is required',
+        text2: 'Book name is required',
       });
       return;
     }
 
     try {
-      await groupService.updateGroup(editingGroup.id, {
-        name: editGroupName.trim(),
-        description: editGroupDescription.trim() || undefined,
+      await bookService.updateBook(editingBook.id, {
+        name: editBookName.trim(),
+        description: editBookDescription.trim() || null,
       });
 
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'Group updated successfully',
+        text2: 'Book updated successfully',
       });
 
       setShowEditModal(false);
-      fetchGroups();
+      void fetchBooks(false);
     } catch (error: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to update group',
+        text2: error.message || 'Failed to update book',
       });
     }
   };
 
-  const handleDeleteGroup = (group: Group) => {
-    setDeletingGroup(group);
+  const handleDeleteBook = (book: Book) => {
+    setDeletingBook(book);
     setShowDeleteConfirm(true);
   };
 
-  const confirmDeleteGroup = async () => {
-    if (!deletingGroup) return;
+  const confirmDeleteBook = async () => {
+    if (!deletingBook) return;
 
     try {
-      await groupService.deleteGroup(deletingGroup.id);
+      await bookService.softDeleteBook(deletingBook.id);
       
       Toast.show({
         type: 'success',
         text1: 'Success',
-        text2: 'Group deleted successfully',
+        text2: 'Book deleted successfully',
       });
 
       setShowDeleteConfirm(false);
-      fetchGroups();
+      void fetchBooks(false);
     } catch (error: any) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: error.message || 'Failed to delete group',
+        text2: error.message || 'Failed to delete book',
       });
     }
   };
 
-  const isGroupOwner = (group: Group) => user?.id === group.createdBy;
+  const isBookOwner = (book: Book) => book.memberRole === 'owner';
 
-  const handleShowMemberDetails = async (group: Group) => {
-    setSelectedGroup(group);
+  const handleShowMemberDetails = async (book: Book) => {
+    setSelectedBook(book);
     setLoadingMembers(true);
+    setMemberError(null);
+    setMemberDetails([]);
     setShowMemberDetails(true);
 
     try {
-      const memberNames = await getUserDisplayNames(group.members);
-      setMemberDetails(memberNames);
-    } catch (error) {
-      console.error('Error fetching member details:', error);
+      const members = await bookService.listMembers(book.id);
+      setMemberDetails(members);
+      setMembersCache((current) => ({ ...current, [book.id]: members }));
+    } catch (error: any) {
+      setMemberError(error?.message || 'Could not load members. Please try again.');
     } finally {
       setLoadingMembers(false);
     }
   };
 
-  const renderGroupItem = ({ item }: { item: Group }) => (
+  const handleOpenBook = async (book: Book) => {
+    try {
+      const members = membersCache[book.id] ?? await bookService.listMembers(book.id);
+      setMembersCache((current) => ({ ...current, [book.id]: members }));
+      navigation.navigate(
+        'GroupDetails',
+        { group: toLegacyGroupForGroupDetails(book, members, user?.id ?? '') }
+      );
+    } catch (error: any) {
+      Toast.show({ type: 'error', text1: 'Error', text2: error?.message || 'Could not open book.' });
+    }
+  };
+
+  const renderBookItem = ({ item }: { item: Book }) => (
     <TouchableOpacity
       style={[
         styles.groupItem,
@@ -172,20 +207,16 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
           borderBottomColor: theme.colors.borderLight,
         },
       ]}
-      onPress={() => navigation.navigate('GroupDetails', { group: item })}
-      onLongPress={() => {
-        if (isGroupOwner(item)) {
-          Alert.alert(
-            'Group Options',
-            'What would you like to do?',
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { text: 'Edit Group', onPress: () => handleEditGroup(item) },
-              { text: 'Delete Group', style: 'destructive', onPress: () => handleDeleteGroup(item) },
-            ]
-          );
-        }
-      }}
+      onPress={() => void handleOpenBook(item)}
+      onLongPress={isBookOwner(item) ? () => Alert.alert(
+        'Book Options',
+        'What would you like to do?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Edit Book', onPress: () => handleEditBook(item) },
+          { text: 'Delete Book', style: 'destructive', onPress: () => handleDeleteBook(item) },
+        ]
+      ) : undefined}
     >
       <View style={styles.groupInfo}>
         <Text style={[styles.groupName, { color: theme.colors.text }]}>{item.name}</Text>
@@ -198,11 +229,11 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
             style={styles.memberCountButton}
           >
             <Text style={[styles.groupMembers, { color: theme.colors.textSecondary }]}>
-              {item.members.length} members
+              {membersCache[item.id] ? `${membersCache[item.id].length} members` : 'View members'}
             </Text>
             <Ionicons name="chevron-down" size={16} color={theme.colors.textSecondary} />
           </TouchableOpacity>
-          {isGroupOwner(item) && (
+          {isBookOwner(item) && (
             <Text style={[styles.ownerBadge, { backgroundColor: theme.colors.primary, color: theme.colors.onPrimary }]}>Owner</Text>
           )}
         </View>
@@ -214,7 +245,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>My Groups</Text>
+        <Text style={[styles.title, { color: theme.colors.text }]}>My Books</Text>
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
           onPress={() => navigation.navigate('CreateGroup')}
@@ -224,37 +255,54 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
       </View>
 
       <FlatList
-        data={groups}
-        renderItem={renderGroupItem}
+        data={books}
+        renderItem={renderBookItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
+        ListHeaderComponent={books.length > 0 && loadError ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{loadError}</Text>
+            <TouchableOpacity onPress={() => void fetchBooks()}>
+              <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
           loading ? (
             <View style={styles.loadingContainer}>
-              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your groups...</Text>
+              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your books...</Text>
+            </View>
+          ) : loadError ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={64} color={theme.colors.error} />
+              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>Could not load books</Text>
+              <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>{loadError}</Text>
+              <TouchableOpacity onPress={() => void fetchBooks()}>
+                <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="people-outline" size={64} color={theme.colors.textTertiary} />
-              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>No groups yet</Text>
+              <Ionicons name="book-outline" size={64} color={theme.colors.textTertiary} />
+              <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>No books yet</Text>
               <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>
-                Create your first group to start tracking expenses with friends
+                Create your first book to start tracking cash in and cash out
               </Text>
               <TouchableOpacity
                 style={[styles.createGroupButton, { backgroundColor: theme.colors.primary }]}
                 onPress={() => navigation.navigate('CreateGroup')}
               >
-                <Text style={[styles.createGroupButtonText, { color: theme.colors.onPrimary }]}>Create Group</Text>
+                <Text style={[styles.createGroupButtonText, { color: theme.colors.onPrimary }]}>Create Book</Text>
               </TouchableOpacity>
             </View>
           )
         }
       />
 
-      {/* Edit Group Modal */}
+      {/* Edit Book Modal */}
       <Modal
         visible={showEditModal}
         animationType="slide"
@@ -264,14 +312,14 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Group</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Book</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
                 <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Group Name</Text>
+              <Text style={[styles.inputLabel, { color: theme.colors.text }]}>Book Name</Text>
               <TextInput
                 style={[
                   styles.textInput,
@@ -281,9 +329,9 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
                     color: theme.colors.text,
                   },
                 ]}
-                value={editGroupName}
-                onChangeText={setEditGroupName}
-                placeholder="Enter group name"
+                value={editBookName}
+                onChangeText={setEditBookName}
+                placeholder="Enter book name"
                 placeholderTextColor={theme.colors.textTertiary}
               />
             </View>
@@ -299,9 +347,9 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
                     color: theme.colors.text,
                   },
                 ]}
-                value={editGroupDescription}
-                onChangeText={setEditGroupDescription}
-                placeholder="Enter group description"
+                value={editBookDescription}
+                onChangeText={setEditBookDescription}
+                placeholder="Enter book description"
                 placeholderTextColor={theme.colors.textTertiary}
                 multiline
                 numberOfLines={3}
@@ -317,7 +365,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
-                onPress={handleUpdateGroup}
+                onPress={handleUpdateBook}
               >
                 <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>Save Changes</Text>
               </TouchableOpacity>
@@ -336,11 +384,11 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Delete Group</Text>
+              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Delete Book</Text>
             </View>
 
             <Text style={[styles.deleteMessage, { color: theme.colors.textSecondary }]}>
-              Are you sure you want to delete "{deletingGroup?.name}"? This action cannot be undone.
+              Are you sure you want to delete "{deletingBook?.name}"? This will hide the book and its transactions.
             </Text>
 
             <View style={styles.modalActions}>
@@ -352,7 +400,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.deleteButton, { backgroundColor: theme.colors.error }]}
-                onPress={confirmDeleteGroup}
+                onPress={confirmDeleteBook}
               >
                 <Text style={[styles.deleteButtonText, { color: theme.colors.onError }]}>Delete</Text>
               </TouchableOpacity>
@@ -372,7 +420,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
           <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-                {selectedGroup?.name} - Members
+                {selectedBook?.name} - Members
               </Text>
               <TouchableOpacity onPress={() => setShowMemberDetails(false)}>
                 <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
@@ -382,20 +430,29 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
             <ScrollView style={styles.memberList}>
               {loadingMembers ? (
                 <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading members...</Text>
+              ) : memberError ? (
+                <View style={styles.memberError}>
+                  <Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{memberError}</Text>
+                  {selectedBook && (
+                    <TouchableOpacity onPress={() => void handleShowMemberDetails(selectedBook)}>
+                      <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               ) : (
-                Object.entries(memberDetails).map(([userId, displayName]) => (
-                  <View key={userId} style={[styles.memberItem, { borderBottomColor: theme.colors.borderLight }]}>
+                memberDetails.map((member) => (
+                  <View key={member.userId} style={[styles.memberItem, { borderBottomColor: theme.colors.borderLight }]}>
                     <View style={styles.memberInfo}>
                       <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primary }]}>
                         <Ionicons name="person" size={20} color={theme.colors.onPrimary} />
                       </View>
                       <View style={styles.memberDetails}>
-                        <Text style={[styles.memberName, { color: theme.colors.text }]}>{displayName}</Text>
+                        <Text style={[styles.memberName, { color: theme.colors.text }]}>{member.displayName || 'Unnamed member'}</Text>
                         <View style={styles.memberBadges}>
-                          {selectedGroup?.createdBy === userId && (
+                          {member.role === 'owner' && (
                             <Text style={[styles.ownerBadge, { backgroundColor: theme.colors.primary, color: theme.colors.onPrimary }]}>Owner</Text>
                           )}
-                          {userId === user?.id && (
+                          {member.userId === user?.id && (
                             <Text style={[styles.currentUserBadge, { backgroundColor: theme.colors.secondary, color: theme.colors.onSecondary }]}>You</Text>
                           )}
                         </View>
@@ -500,6 +557,11 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     paddingHorizontal: 40,
   },
+  retryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    paddingVertical: 12,
+  },
   createGroupButton: {
     paddingHorizontal: 24,
     paddingVertical: 12,
@@ -598,6 +660,10 @@ const styles = StyleSheet.create({
   memberList: {
     maxHeight: 400,
   },
+  memberError: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
   memberItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -636,4 +702,4 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
   },
-}); 
+});

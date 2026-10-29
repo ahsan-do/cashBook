@@ -13,9 +13,13 @@ interface BookRow {
   deleted_at: string | null;
 }
 
+interface BookWithMembershipRow extends BookRow {
+  book_members?: Array<{ user_id: string; role: 'owner' | 'member' }>;
+}
+
 const bookColumns = 'id,name,description,currency_code,created_by,created_at,updated_at,deleted_at';
 
-const mapBook = (row: BookRow): Book => ({
+const mapBook = (row: BookRow, memberRole?: 'owner' | 'member'): Book => ({
   id: row.id,
   name: row.name,
   description: row.description,
@@ -24,6 +28,7 @@ const mapBook = (row: BookRow): Book => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   deletedAt: row.deleted_at,
+  ...(memberRole ? { memberRole } : {}),
 });
 
 export interface CreateBookInput {
@@ -39,15 +44,18 @@ export interface UpdateBookInput {
 
 export const bookService = {
   /** RLS limits this query to books the signed-in user belongs to. */
-  async listMyBooks(): Promise<Book[]> {
+  async listMyBooks(userId: string): Promise<Book[]> {
     try {
       const { data, error } = await supabase
         .from('books')
-        .select(bookColumns)
+        .select(`${bookColumns},book_members!inner(user_id,role)`)
+        .eq('book_members.user_id', userId)
         .is('deleted_at', null)
         .order('updated_at', { ascending: false });
       if (error) throw error;
-      return ((data ?? []) as unknown as BookRow[]).map(mapBook);
+      return ((data ?? []) as unknown as BookWithMembershipRow[]).map((row) =>
+        mapBook(row, row.book_members?.[0]?.role)
+      );
     } catch (error) {
       return throwServiceError(error, 'Could not load books');
     }
@@ -62,7 +70,7 @@ export const bookService = {
       });
       if (error) throw error;
       if (!data) throw new Error('The book was created without a returned record.');
-      return mapBook(data as unknown as BookRow);
+      return mapBook(data as unknown as BookRow, 'owner');
     } catch (error) {
       return throwServiceError(error, 'Could not create book');
     }

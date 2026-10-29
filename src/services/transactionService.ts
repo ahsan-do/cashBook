@@ -101,8 +101,9 @@ export const transactionService = {
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) {
       throw new Error('Page size must be between 1 and 100.');
     }
-    if (filters.fromDate) requireValidDate(filters.fromDate, 'Start date');
-    if (filters.toDate) requireValidDate(filters.toDate, 'End date');
+    if (filters.fromDate != null) requireValidDate(filters.fromDate, 'Start date');
+    if (filters.toDate != null) requireValidDate(filters.toDate, 'End date');
+    if (filters.cursor) requireValidDate(filters.cursor.entryDate, 'Cursor date');
 
     try {
       const { data, error } = await supabase.rpc('book_transaction_page', {
@@ -155,7 +156,7 @@ export const transactionService = {
     const category = input.category?.trim() || 'General';
     const description = input.description?.trim() || null;
     validateTextFields({ title, category, description });
-    if (input.entryDate) requireValidDate(input.entryDate, 'Entry date');
+    if (input.entryDate != null) requireValidDate(input.entryDate, 'Entry date');
     const amount = amountForDatabase(input.amount);
 
     try {

@@ -21,6 +21,8 @@ export interface Book {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  /** Role held by the signed-in user when returned from listMyBooks. */
+  memberRole?: BookMemberRole;
 }
 
 /** Application model for public.transactions and book_transaction_page rows. */

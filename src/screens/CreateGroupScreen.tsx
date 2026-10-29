@@ -11,55 +11,44 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { groupService } from '../services/groupService';
-import { testFirestoreAccess } from '../services/firebase';
+import { bookService } from '../services/bookService';
 
 interface CreateGroupScreenProps {
   navigation: any;
 }
 
 export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation }) => {
-  const { user } = useAuth();
   const { theme } = useTheme();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [currencyCode, setCurrencyCode] = useState('PKR');
   const [loading, setLoading] = useState(false);
+  const currencies = ['PKR', 'USD', 'EUR', 'GBP', 'AED', 'SAR'];
 
   const handleCreateGroup = async () => {
-    if (!name) {
-      Alert.alert('Error', 'Please enter a group name');
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      Alert.alert('Error', 'Please enter a book name.');
       return;
     }
 
     setLoading(true);
     try {
-      // Test Firestore access first
-      const canAccessFirestore = await testFirestoreAccess();
-      if (!canAccessFirestore) {
-        Alert.alert('Error', 'Cannot access database. Please check your connection.');
-        return;
-      }
-
-      console.log('Creating group with user ID:', user!.id);
-      const groupId = await groupService.createGroup({
-        name,
-        description,
-        createdBy: user!.id,
-        members: [user!.id],
+      await bookService.createBook({
+        name: trimmedName,
+        currencyCode,
+        description: description.trim() || null,
       });
 
-      Alert.alert('Success', 'Group created successfully!', [
+      Alert.alert('Success', 'Book created successfully!', [
         {
           text: 'OK',
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error: any) {
-      console.error('Group creation error:', error);
-      Alert.alert('Error', `Failed to create group: ${error.message}`);
+      Alert.alert('Error', error?.message || 'Could not create book. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -73,15 +62,15 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.text }]}>Create New Group</Text>
+            <Text style={[styles.title, { color: theme.colors.text }]}>Create New Book</Text>
             <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-              Set up a group to start tracking expenses together
+              Set up a book to start tracking cash in and cash out
             </Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.inputContainer}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>Group Name *</Text>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Book Name *</Text>
               <TextInput
                 style={[
                   styles.input,
@@ -91,12 +80,38 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
                     color: theme.colors.text,
                   },
                 ]}
-                placeholder="e.g., Hostel Group, Office Group"
+                placeholder="e.g., Home, Shop, Personal"
                 placeholderTextColor={theme.colors.textTertiary}
                 value={name}
                 onChangeText={setName}
                 autoCapitalize="words"
               />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={[styles.label, { color: theme.colors.text }]}>Currency</Text>
+              <View style={styles.currencyOptions}>
+                {currencies.map((code) => {
+                  const selected = currencyCode === code;
+                  return (
+                    <TouchableOpacity
+                      key={code}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      style={[
+                        styles.currencyOption,
+                        {
+                          backgroundColor: selected ? theme.colors.primary : theme.colors.surface,
+                          borderColor: selected ? theme.colors.primary : theme.colors.border,
+                        },
+                      ]}
+                      onPress={() => setCurrencyCode(code)}
+                    >
+                      <Text style={{ color: selected ? theme.colors.onPrimary : theme.colors.text }}>{code}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </View>
 
             <View style={styles.inputContainer}>
@@ -111,7 +126,7 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
                     color: theme.colors.text,
                   },
                 ]}
-                placeholder="Describe the purpose of this group"
+                placeholder="Describe the purpose of this book"
                 placeholderTextColor={theme.colors.textTertiary}
                 value={description}
                 onChangeText={setDescription}
@@ -132,7 +147,7 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
               disabled={loading}
             >
               <Text style={[styles.createButtonText, { color: theme.colors.onPrimary }]}>
-                {loading ? 'Creating...' : 'Create Group'}
+                {loading ? 'Creating...' : 'Create Book'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -170,6 +185,19 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 16,
   },
+  currencyOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  currencyOption: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    minWidth: 64,
+    alignItems: 'center',
+  },
   label: {
     marginBottom: 8,
     fontWeight: '500',
@@ -196,4 +224,4 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 18,
   },
-}); 
+});
