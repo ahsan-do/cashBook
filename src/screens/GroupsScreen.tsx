@@ -17,23 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Book, Group, Member } from '../types';
+import { Book, Member } from '../types';
 import { bookService } from '../services/bookService';
-
-// TODO: Remove this adapter when GroupDetailsScreen consumes the Book model.
-const toLegacyGroupForGroupDetails = (book: Book, members: Member[], currentUserId: string): Group => ({
-  id: book.id,
-  name: book.name,
-  description: book.description ?? undefined,
-  createdBy: book.memberRole === 'owner'
-    ? currentUserId
-    : book.createdBy === currentUserId
-      ? ''
-      : book.createdBy,
-  members: members.map((member) => member.userId),
-  createdAt: new Date(book.createdAt),
-  updatedAt: new Date(book.updatedAt),
-});
 
 interface GroupsScreenProps {
   navigation: any;
@@ -185,17 +170,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
     }
   };
 
-  const handleOpenBook = async (book: Book) => {
-    try {
-      const members = membersCache[book.id] ?? await bookService.listMembers(book.id);
-      setMembersCache((current) => ({ ...current, [book.id]: members }));
-      navigation.navigate(
-        'GroupDetails',
-        { group: toLegacyGroupForGroupDetails(book, members, user?.id ?? '') }
-      );
-    } catch (error: any) {
-      Toast.show({ type: 'error', text1: 'Error', text2: error?.message || 'Could not open book.' });
-    }
+  const handleOpenBook = (book: Book) => {
+    navigation.navigate('GroupDetails', { bookId: book.id, name: book.name });
   };
 
   const renderBookItem = ({ item }: { item: Book }) => (

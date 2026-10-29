@@ -43,6 +43,21 @@ export interface UpdateBookInput {
 }
 
 export const bookService = {
+  async getBook(bookId: string): Promise<Book> {
+    try {
+      const { data, error } = await supabase
+        .from('books')
+        .select(bookColumns)
+        .eq('id', bookId)
+        .is('deleted_at', null)
+        .single();
+      if (error) throw error;
+      return mapBook(data as unknown as BookRow);
+    } catch (error) {
+      return throwServiceError(error, 'Could not load book');
+    }
+  },
+
   /** RLS limits this query to books the signed-in user belongs to. */
   async listMyBooks(userId: string): Promise<Book[]> {
     try {

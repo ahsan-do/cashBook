@@ -25,6 +25,21 @@ const mapInvitation = (row: InvitationRow): Invitation => ({
 });
 
 export const invitationService = {
+  async listBookPendingInvitations(bookId: string): Promise<Invitation[]> {
+    try {
+      const { data, error } = await supabase
+        .from('invitations')
+        .select('id,book_id,invited_email,invited_by,status,created_at,updated_at,expires_at')
+        .eq('book_id', bookId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return ((data ?? []) as unknown as InvitationRow[]).map(mapInvitation);
+    } catch (error) {
+      return throwServiceError(error, 'Could not load pending invitations');
+    }
+  },
+
   async sendInvitation(bookId: string, email: string): Promise<Invitation> {
     const invitedEmail = email.trim().toLowerCase();
     if (!invitedEmail) throw new Error('Enter an email address to invite.');
