@@ -1,13 +1,19 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(60);
+select plan(66);
 
 create temporary table test_ids (
   book_id uuid,
   book_b_id uuid,
   invitation_id uuid,
+  decline_invitation_id uuid,
+  revoke_invitation_id uuid,
+  deleted_book_invitation_id uuid,
   immutable_invitation_id uuid,
+  page_book_id uuid,
+  page_deleted_transaction_id uuid,
+  deleted_book_id uuid,
   opening_created_at timestamptz
 );
 grant select, insert, update on test_ids to authenticated;
@@ -48,8 +54,109 @@ insert into public.transactions (book_id, title, amount, type, created_by)
   values ((select book_id from test_ids), 'Opening funds', 1000.00, 'cash_in', auth.uid());
 select public.create_book('Second ledger', 'PKR', null);
 update test_ids set book_b_id = (select id from public.books where name = 'Second ledger');
+select public.create_book('Page test ledger', 'USD', null);
+update test_ids set page_book_id = (select id from public.books where name = 'Page test ledger');
+select public.create_book('Deleted book test', 'PKR', null);
+update test_ids set deleted_book_id = (select id from public.books where name = 'Deleted book test');
+insert into public.invitations (book_id, invited_email, invited_by)
+  values ((select page_book_id from test_ids), 'member@example.test', auth.uid());
+update test_ids set decline_invitation_id = (
+  select id from public.invitations where book_id = (select page_book_id from test_ids)
+    and invited_email = 'member@example.test' and status = 'pending'
+);
+insert into public.invitations (book_id, invited_email, invited_by)
+  values ((select book_id from test_ids), 'outsider@example.test', auth.uid());
+update test_ids set revoke_invitation_id = (
+  select id from public.invitations where book_id = (select book_id from test_ids)
+    and invited_email = 'outsider@example.test' and status = 'pending'
+);
+insert into public.invitations (book_id, invited_email, invited_by)
+  values ((select deleted_book_id from test_ids), 'member@example.test', auth.uid());
+update test_ids set deleted_book_invitation_id = (
+  select id from public.invitations where book_id = (select deleted_book_id from test_ids)
+    and invited_email = 'member@example.test' and status = 'pending'
+);
+reset role;
+
+-- Prepare a dedicated ledger with deterministic dates/times and exact decimals.
+insert into public.book_members (book_id, user_id, role) values
+  ((select page_book_id from test_ids), '10000000-0000-0000-0000-000000000002', 'member'),
+  ((select book_b_id from test_ids), '10000000-0000-0000-0000-000000000003', 'member');
+insert into public.transactions (book_id, title, amount, type, category, created_by, created_at, entry_date) values
+  ((select page_book_id from test_ids), 'Day 1 in', 100.10, 'cash_in', 'Test', '10000000-0000-0000-0000-000000000001', '2026-10-20 09:00:00+00', '2026-10-20'),
+  ((select page_book_id from test_ids), 'Day 1 out', 20.00, 'cash_out', 'Test', '10000000-0000-0000-0000-000000000001', '2026-10-20 10:00:00+00', '2026-10-20'),
+  ((select page_book_id from test_ids), 'Day 2 in', 50.25, 'cash_in', 'Test', '10000000-0000-0000-0000-000000000001', '2026-10-21 09:00:00+00', '2026-10-21'),
+  ((select page_book_id from test_ids), 'Day 2 out', 10.00, 'cash_out', 'Test', '10000000-0000-0000-0000-000000000001', '2026-10-21 10:00:00+00', '2026-10-21'),
+  ((select page_book_id from test_ids), 'Deleted cash in', 900.00, 'cash_in', 'Test', '10000000-0000-0000-0000-000000000001', '2026-10-22 09:00:00+00', '2026-10-22');
+update test_ids set page_deleted_transaction_id = (
+  select id from public.transactions where book_id = (select page_book_id from test_ids) and title = 'Deleted cash in'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.lives_ok(
+  $$select public.soft_delete_transaction((select page_deleted_transaction_id from test_ids))$$,
+  'soft_delete_transaction executes for an owner and removes the row from the active ledger'
+);
+reset role;
+
+-- Exercise the page RPC as a verified member against real transaction rows.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
+select extensions.lives_ok(
+  $$select * from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, null, null)$$,
+  'verified book member can call book_transaction_page without an ambiguous-column error'
+);
+select extensions.results_eq(
+  $$select title from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, null, null)$$,
+  $$values ('Day 2 out'::text), ('Day 2 in'::text), ('Day 1 out'::text), ('Day 1 in'::text)$$,
+  'book_transaction_page returns active rows newest first and excludes the soft-deleted transaction'
+);
+select extensions.results_eq(
+  $$select title, running_balance from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, null, null)$$,
+  $$values ('Day 2 out'::text, 120.35::numeric), ('Day 2 in'::text, 130.35::numeric), ('Day 1 out'::text, 80.10::numeric), ('Day 1 in'::text, 100.10::numeric)$$,
+  'running balances include all active transactions and preserve decimal amounts'
+);
+select extensions.results_eq(
+  $$select title, running_balance from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, 'cash_out', null, null)$$,
+  $$values ('Day 2 out'::text, 120.35::numeric), ('Day 1 out'::text, 80.10::numeric)$$,
+  'type filtering hides rows without changing the running balance'
+);
+select extensions.results_eq(
+  $$select title, running_balance from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, date '2026-10-21', date '2026-10-22')$$,
+  $$values ('Day 2 out'::text, 120.35::numeric), ('Day 2 in'::text, 130.35::numeric)$$,
+  'from/to date filtering hides rows without changing the running balance'
+);
+select extensions.results_eq(
+  $$select title from public.book_transaction_page((select page_book_id from test_ids), 2, null, null, null, null, null, null)$$,
+  $$values ('Day 2 out'::text), ('Day 2 in'::text)$$,
+  'first cursor page contains the newest two rows'
+);
+select extensions.results_eq(
+  $$select title from public.book_transaction_page((select page_book_id from test_ids), 2, date '2026-10-21', timestamptz '2026-10-21 09:00:00+00', (select id from public.transactions where book_id = (select page_book_id from test_ids) and title = 'Day 2 in'), null, null, null)$$,
+  $$values ('Day 1 out'::text), ('Day 1 in'::text)$$,
+  'next cursor page continues without duplicates or gaps'
+);
+select extensions.is(
+  (select count(*)::integer from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, null, null)),
+  4,
+  'book_transaction_page excludes soft-deleted transactions'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","email":"outsider@example.test"}', true);
+select extensions.throws_ok(
+  $$select * from public.book_transaction_page((select page_book_id from test_ids), 10, null, null, null, null, null, null)$$,
+  '42501', null, 'non-member is rejected by book_transaction_page'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+reset role;
 
 -- Unverified accounts cannot read book data or write transactions.
+set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000004","role":"authenticated","email":"unverified@example.test"}', true);
 select extensions.throws_ok(
   $$select count(*) from public.books$$,
@@ -203,8 +310,7 @@ select extensions.is(
   'book_totals decimal net balance is exact'
 );
 
--- Security regression tests for the applied schema. These assertions are
--- intentionally added before the corrective migration.
+-- Security regression tests for hardened policies and immutable triggers.
 select extensions.ok(
   exists (select 1 from pg_trigger where tgrelid = 'public.transactions'::regclass and tgname = 'transactions_immutable_fields' and not tgisinternal),
   'transactions have an immutable identity/date trigger'
@@ -229,27 +335,39 @@ select extensions.ok(
   ),
   'book_members has no client insert, update, or delete policies'
 );
-select extensions.ok(to_regprocedure('public.remove_member(uuid,uuid)') is not null,
-  'remove_member RPC exists');
-select extensions.ok(to_regprocedure('public.leave_book(uuid)') is not null,
-  'leave_book RPC exists');
-select extensions.ok(to_regprocedure('public.transfer_ownership(uuid,uuid)') is not null,
-  'transfer_ownership RPC exists');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.lives_ok(
+  $$select public.remove_member((select book_b_id from test_ids), '10000000-0000-0000-0000-000000000003')$$,
+  'book owner can remove another member'
+);
+select extensions.throws_ok(
+  $$select public.remove_member((select book_b_id from test_ids), auth.uid())$$,
+  '42501', null, 'book owner cannot remove themselves'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
+select extensions.lives_ok(
+  $$select public.leave_book((select page_book_id from test_ids))$$,
+  'member can leave a book'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.throws_ok(
+  $$select public.leave_book((select book_b_id from test_ids))$$,
+  '23514', null, 'last owner cannot leave a book'
+);
+select extensions.lives_ok(
+  $$select public.transfer_ownership((select book_b_id from test_ids), '10000000-0000-0000-0000-000000000002')$$,
+  'book owner can transfer ownership to an existing member'
+);
+reset role;
 select extensions.ok(
   exists (select 1 from pg_trigger where tgrelid = 'public.book_members'::regclass and tgname = 'book_members_immutable_fields' and not tgisinternal),
   'book member identity fields have an immutable trigger'
 );
-select extensions.ok(
-  coalesce(pg_get_functiondef(to_regprocedure('public.remove_member(uuid,uuid)')), '') ilike '%is_book_owner%'
-  and coalesce(pg_get_functiondef(to_regprocedure('public.remove_member(uuid,uuid)')), '') ilike '%auth.uid%',
-  'remove_member checks owner authority and prevents self-removal'
-);
-select extensions.ok(
-  coalesce(pg_get_functiondef(to_regprocedure('public.leave_book(uuid)')), '') ilike '%owner%'
-  and coalesce(pg_get_functiondef(to_regprocedure('public.leave_book(uuid)')), '') ilike '%count%',
-  'leave_book prevents the last owner from leaving'
-);
-
 select extensions.ok(
   exists (select 1 from pg_trigger where tgrelid = 'public.invitations'::regclass and tgname = 'invitations_immutable_fields' and not tgisinternal),
   'invitation identity fields have an immutable trigger'
@@ -258,18 +376,51 @@ select extensions.ok(
   not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'invitations' and cmd = 'UPDATE'),
   'invitations have no client update policy'
 );
-select extensions.ok(to_regprocedure('public.decline_invitation(uuid)') is not null,
-  'decline_invitation RPC exists');
-select extensions.ok(to_regprocedure('public.revoke_invitation(uuid)') is not null,
-  'revoke_invitation RPC exists');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
+select extensions.lives_ok(
+  $$select * from public.my_pending_invitations()$$,
+  'verified invitee can call my_pending_invitations'
+);
+select extensions.results_eq(
+  $$select invitation_id, book_name, inviter_display_name from public.my_pending_invitations() order by book_name$$,
+  $$values ((select deleted_book_invitation_id from test_ids), 'Deleted book test'::text, 'Owner'::text), ((select decline_invitation_id from test_ids), 'Page test ledger'::text, 'Owner'::text)$$,
+  'my_pending_invitations returns invitation, book, and inviter data for the invitee'
+);
+select extensions.ok(
+  exists (select 1 from public.my_pending_invitations() where expires_at > now()),
+  'my_pending_invitations returns an active expiry timestamp'
+);
+select extensions.lives_ok(
+  $$select public.decline_invitation((select decline_invitation_id from test_ids))$$,
+  'invitee can decline a pending invitation'
+);
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.is(
+  (select count(*)::integer from public.my_pending_invitations()),
+  0,
+  'my_pending_invitations does not expose another user’s invitations'
+);
+select extensions.lives_ok(
+  $$select public.revoke_invitation((select revoke_invitation_id from test_ids))$$,
+  'book owner can revoke a pending invitation'
+);
+reset role;
 select extensions.ok(
   coalesce((select column_default from information_schema.columns
     where table_schema = 'public' and table_name = 'invitations' and column_name = 'expires_at'), '') ilike '%7 days%',
   'invitation expiry defaults to seven days'
 );
 
-select extensions.ok(to_regprocedure('public.soft_delete_book(uuid)') is not null,
-  'soft_delete_book RPC exists');
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000001","role":"authenticated","email":"owner@example.test"}', true);
+select extensions.lives_ok(
+  $$select public.soft_delete_book((select deleted_book_id from test_ids))$$,
+  'book owner can soft-delete a book'
+);
+reset role;
 select extensions.ok(
   not exists (
     select 1 from pg_policies
@@ -283,10 +434,13 @@ select extensions.ok(
   and coalesce((select with_check from pg_policies where schemaname = 'public' and tablename = 'transactions' and policyname = 'transactions_insert_members'), '') ilike '%deleted_at%',
   'transaction read and insert policies require an active book'
 );
-select extensions.ok(
-  coalesce(pg_get_functiondef(to_regprocedure('public.accept_invitation(uuid)')), '') ilike '%deleted_at%',
-  'accept_invitation rejects deleted books'
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
+select extensions.throws_ok(
+  $$select public.accept_invitation((select deleted_book_invitation_id from test_ids))$$,
+  '55000', null, 'accept_invitation rejects an invitation to a deleted book'
 );
+reset role;
 
 select extensions.ok(
   not exists (
@@ -313,32 +467,6 @@ select extensions.ok(
     where table_schema = 'public' and table_name = 'transactions' and column_name = 'entry_date'
       and data_type = 'date' and is_nullable = 'NO' and column_default ilike '%CURRENT_DATE%'),
   'transactions have non-null entry_date defaulting to current_date'
-);
-select extensions.ok(
-  exists (select 1 from pg_proc where pronamespace = 'public'::regnamespace and proname = 'book_transaction_page' and prosrc ilike '%entry_date%'),
-  'book_transaction_page orders, filters, and balances by entry_date'
-);
-
-select extensions.ok(to_regprocedure('public.my_pending_invitations()') is not null,
-  'my_pending_invitations RPC exists');
-select extensions.ok(
-  coalesce(pg_get_function_result(to_regprocedure('public.my_pending_invitations()')), '') ilike '%invitation_id%'
-  and coalesce(pg_get_function_result(to_regprocedure('public.my_pending_invitations()')), '') ilike '%book_name%'
-  and coalesce(pg_get_function_result(to_regprocedure('public.my_pending_invitations()')), '') ilike '%inviter_display_name%'
-  and coalesce(pg_get_function_result(to_regprocedure('public.my_pending_invitations()')), '') ilike '%expires_at%',
-  'pending invitation RPC returns the required fields'
-);
-select extensions.ok(
-  coalesce(pg_get_functiondef(to_regprocedure('public.my_pending_invitations()')), '') ilike '%invited_email%'
-  and (
-    coalesce(pg_get_functiondef(to_regprocedure('public.my_pending_invitations()')), '') ilike '%auth.uid%'
-    or coalesce(pg_get_functiondef(to_regprocedure('public.my_pending_invitations()')), '') ilike '%auth.jwt%'
-  ),
-  'pending invitations are scoped to the authenticated invitee'
-);
-select extensions.ok(
-  coalesce(pg_get_functiondef(to_regprocedure('public.soft_delete_transaction(uuid)')), '') ilike '%is_book_member%',
-  'transaction soft delete requires current book membership'
 );
 select extensions.ok(
   not exists (
@@ -417,10 +545,6 @@ select extensions.is(
   '10000000-0000-0000-0000-000000000001'::uuid,
   'created_by remains unchanged after the rejected change'
 );
-select extensions.ok(
-  pg_get_functiondef('public.prevent_transaction_identity_change()'::regprocedure) ilike '%immutable%',
-  'transaction trigger raises an immutable-fields error'
-);
 select extensions.throws_like(
   $$update public.book_members set user_id = '10000000-0000-0000-0000-000000000003'
     where book_id = (select book_b_id from test_ids) and user_id = '10000000-0000-0000-0000-000000000001'$$,
@@ -432,10 +556,6 @@ select extensions.is(
   '10000000-0000-0000-0000-000000000001'::uuid,
   'book_members.user_id remains unchanged after the rejected change'
 );
-select extensions.ok(
-  pg_get_functiondef('public.prevent_book_member_identity_change()'::regprocedure) ilike '%immutable%',
-  'book member trigger raises an immutable-fields error'
-);
 select extensions.throws_like(
   $$update public.invitations set invited_email = 'outsider@example.test'
     where id = (select immutable_invitation_id from test_ids)$$,
@@ -445,10 +565,6 @@ select extensions.is(
   (select invited_email from public.invitations where id = (select immutable_invitation_id from test_ids)),
   'member@example.test',
   'invitations.invited_email remains unchanged after the rejected change'
-);
-select extensions.ok(
-  pg_get_functiondef('public.prevent_invitation_identity_change()'::regprocedure) ilike '%immutable%',
-  'invitation trigger raises an immutable-fields error'
 );
 
 reset role;
