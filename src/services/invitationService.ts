@@ -2,6 +2,15 @@ import { supabase } from './supabase';
 import { Invitation, PendingInvitation } from '../types';
 import { throwServiceError } from './serviceErrors';
 
+/** Preserve custom Postgres RPC messages so invitation failures explain their state. */
+const throwInvitationRpcError = (error: unknown, operation: string): never => {
+  const serverMessage = (error as { message?: unknown } | null)?.message;
+  if (typeof serverMessage === 'string' && serverMessage.trim()) {
+    throw new Error(serverMessage);
+  }
+  return throwServiceError(error, operation);
+};
+
 interface InvitationRow {
   id: string;
   book_id: string;
@@ -94,7 +103,7 @@ export const invitationService = {
       if (typeof data !== 'string') throw new Error('The invitation was accepted without a book reference.');
       return data;
     } catch (error) {
-      return throwServiceError(error, 'Could not accept invitation');
+      return throwInvitationRpcError(error, 'Could not accept invitation');
     }
   },
 
@@ -105,7 +114,7 @@ export const invitationService = {
       });
       if (error) throw error;
     } catch (error) {
-      throwServiceError(error, 'Could not decline invitation');
+      throwInvitationRpcError(error, 'Could not decline invitation');
     }
   },
 

@@ -40,9 +40,8 @@ const localToday = () => {
 const friendlyError = (error: unknown, operation: string) => toServiceError(error, operation).message;
 
 export const GroupDetailsScreen: React.FC<GroupDetailsScreenProps> = ({ navigation, route }) => {
-  // HomeScreen still sends its legacy group param until that screen is migrated.
-  const bookId: string | undefined = route.params?.bookId ?? route.params?.group?.id;
-  const initialName: string | undefined = route.params?.name ?? route.params?.group?.name;
+  const bookId: string | undefined = route.params?.bookId;
+  const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
 

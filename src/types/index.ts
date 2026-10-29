@@ -70,50 +70,11 @@ export interface Member {
   joinedAt: string;
 }
 
-export interface Group {
-  id: string;
-  name: string;
-  description?: string;
-  createdBy: string;
-  members: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface Expense {
-  id: string;
-  groupId: string;
-  title: string;
-  amount: number;
-  category: string;
-  description?: string;
-  paidBy: string;
-  splitBetween: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface GroupMember {
-  userId: string;
-  role: 'admin' | 'member';
-  joinedAt: Date;
-}
-
 export interface ExpenseCategory {
   id: string;
   name: string;
   icon?: string;
   color?: string;
-}
-
-export interface GroupInvitation {
-  id: string;
-  groupId: string;
-  invitedBy: string;
-  invitedEmail: string;
-  status?: 'pending' | 'accepted' | 'declined';
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export type Currency = 'PKR' | 'USD' | 'EUR';

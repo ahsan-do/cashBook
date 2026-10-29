@@ -13,7 +13,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { CurrencySelector } from '../components/CurrencySelector';
-import { groupService } from '../services/groupService';
+import { invitationService } from '../services/invitationService';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -53,10 +53,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   };
 
   const fetchInvitationCount = async () => {
-    if (!user?.email) return;
+    if (!user?.id) return;
     try {
       setLoadingInvitations(true);
-      const invitations = await groupService.getPendingInvitations(user.email);
+      const invitations = await invitationService.listMyPendingInvitations();
       setInvitationCount(invitations.length);
     } catch (error: any) {
       console.error('Error fetching invitation count:', error);
