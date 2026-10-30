@@ -239,7 +239,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
           <View style={styles.emptyState}>
             <Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{loadError}</Text>
             <TouchableOpacity onPress={() => void fetchBooks()}>
-              <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+              <Text style={[styles.retryText, { color: theme.colors.primaryVariant }]}>Try Again</Text>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -257,7 +257,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
               <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>Could not load books</Text>
               <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>{loadError}</Text>
               <TouchableOpacity onPress={() => void fetchBooks()}>
-                <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+                <Text style={[styles.retryText, { color: theme.colors.primaryVariant }]}>Try Again</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -411,7 +411,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
                   <Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{memberError}</Text>
                   {selectedBook && (
                     <TouchableOpacity onPress={() => void handleShowMemberDetails(selectedBook)}>
-                      <Text style={[styles.retryText, { color: theme.colors.primary }]}>Try Again</Text>
+                      <Text style={[styles.retryText, { color: theme.colors.primaryVariant }]}>Try Again</Text>
                     </TouchableOpacity>
                   )}
                 </View>

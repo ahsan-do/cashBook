@@ -1,8 +1,11 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTheme } from '../contexts/ThemeContext';
 
 export const LoadingScreen = () => {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme);
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -12,10 +15,10 @@ export const LoadingScreen = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
@@ -24,7 +27,7 @@ const styles = StyleSheet.create({
   },
   text: {
     marginTop: 16,
-    fontSize: 18,
-    color: '#6b7280',
+    fontSize: theme.typeSize.subtitle,
+    color: theme.colors.textSecondary,
   },
-}); 
+});

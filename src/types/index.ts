@@ -144,6 +144,9 @@ export interface ThemeColors {
 export interface Theme {
   colors: ThemeColors;
   isDark: boolean;
+  spacing: Record<'none' | 'xxs' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'huge', number>;
+  radius: Record<'sm' | 'md' | 'lg' | 'xl' | 'pill', number>;
+  typeSize: Record<'caption' | 'small' | 'body' | 'subtitle' | 'title' | 'display' | 'amount', number>;
 }
 
 export interface ThemeContextType {

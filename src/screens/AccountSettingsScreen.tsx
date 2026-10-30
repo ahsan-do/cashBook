@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface AccountSettingsScreenProps {
   navigation: any;
@@ -17,6 +18,8 @@ interface AccountSettingsScreenProps {
 
 export const AccountSettingsScreen: React.FC<AccountSettingsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
+  const { theme } = useTheme();
+  const styles = makeStyles(theme);
 
   const handleChangePassword = () => {
     Alert.alert('Change Password', 'Password change functionality will be implemented soon.');
@@ -63,11 +66,11 @@ export const AccountSettingsScreen: React.FC<AccountSettingsScreenProps> = ({ na
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#f9fafb' }}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#1f2937" />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Account Settings</Text>
         <View style={{ width: 24 }} />
@@ -97,16 +100,16 @@ export const AccountSettingsScreen: React.FC<AccountSettingsScreenProps> = ({ na
               onPress={item.onPress}
             >
               <View style={styles.menuItemLeft}>
-                <Ionicons 
-                  name={item.icon as any} 
-                  size={24} 
-                  color={item.destructive ? '#dc2626' : '#6b7280'} 
+                <Ionicons
+                  name={item.icon as any}
+                  size={24}
+                  color={item.destructive ? theme.colors.error : theme.colors.textSecondary}
                 />
                 <Text style={[styles.menuItemTitle, item.destructive && styles.destructiveText]}>
                   {item.title}
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
             </TouchableOpacity>
           ))}
         </View>
@@ -115,44 +118,44 @@ export const AccountSettingsScreen: React.FC<AccountSettingsScreenProps> = ({ na
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme.colors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: '#ffffff',
+    padding: theme.spacing.xl,
+    backgroundColor: theme.colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.colors.border,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: theme.typeSize.subtitle,
+    fontWeight: '700',
+    color: theme.colors.text,
   },
   content: {
     flex: 1,
   },
   section: {
-    marginTop: 20,
+    marginTop: theme.spacing.xl,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
-    paddingHorizontal: 20,
+    fontSize: theme.typeSize.body,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.xl,
   },
   infoCard: {
-    backgroundColor: '#ffffff',
-    marginHorizontal: 20,
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
+    backgroundColor: theme.colors.surface,
+    marginHorizontal: theme.spacing.xl,
+    borderRadius: theme.radius.md,
+    padding: theme.spacing.lg,
+    shadowColor: theme.colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -162,40 +165,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: theme.spacing.sm,
   },
   infoLabel: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: theme.typeSize.small,
+    color: theme.colors.textSecondary,
   },
   infoValue: {
-    fontSize: 14,
-    color: '#1f2937',
+    fontSize: theme.typeSize.small,
+    color: theme.colors.text,
     fontWeight: '500',
   },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    minHeight: 56,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: theme.spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme.colors.borderLight,
   },
   destructiveItem: {
-    borderBottomColor: '#fee2e2',
+    borderBottomColor: theme.colors.border,
   },
   menuItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   menuItemTitle: {
-    fontSize: 16,
-    color: '#1f2937',
-    marginLeft: 12,
+    fontSize: theme.typeSize.body,
+    color: theme.colors.text,
+    marginLeft: theme.spacing.md,
   },
   destructiveText: {
-    color: '#dc2626',
+    color: theme.colors.error,
   },
-}); 
+});

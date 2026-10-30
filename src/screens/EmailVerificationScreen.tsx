@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface EmailVerificationScreenProps {
   navigation: any;
@@ -18,6 +19,8 @@ interface EmailVerificationScreenProps {
 }
 
 export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = ({ route }) => {
+  const { theme } = useTheme();
+  const styles = makeStyles(theme);
   const {
     user,
     session,
@@ -106,7 +109,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <View style={styles.iconContainer}>
-          <Ionicons name="mail-outline" size={80} color="#2563eb" />
+          <Ionicons name="mail-outline" size={80} color={theme.colors.primaryVariant} />
         </View>
 
         <Text style={styles.title}>{session ? 'Verify Your Email' : 'Check Your Email'}</Text>
@@ -127,7 +130,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
               disabled={isVerifying}
             >
               {isVerifying ? (
-                <ActivityIndicator color="#ffffff" size="small" />
+                <ActivityIndicator color={theme.colors.onPrimary} size="small" />
               ) : (
                 <Text style={styles.buttonText}>I've Verified My Email</Text>
               )}
@@ -140,7 +143,7 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
             disabled={isResending || cooldownSeconds > 0}
           >
             {isResending ? (
-              <ActivityIndicator color="#2563eb" size="small" />
+              <ActivityIndicator color={theme.colors.primary} size="small" />
             ) : (
               <Text style={[styles.buttonText, styles.secondaryButtonText]}>
                 {cooldownSeconds > 0 ? `Resend Email (${cooldownSeconds}s)` : 'Resend Email'}
@@ -164,96 +167,96 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme.colors.background,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: theme.spacing.xxxl,
   },
   iconContainer: {
-    marginBottom: 32,
+    marginBottom: theme.spacing.xxxl,
   },
   title: {
-    fontSize: 28,
+    fontSize: theme.typeSize.title,
     fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 16,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.lg,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 8,
+    fontSize: theme.typeSize.body,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
   email: {
-    fontSize: 18,
+    fontSize: theme.typeSize.subtitle,
     fontWeight: '600',
-    color: '#2563eb',
-    marginBottom: 24,
+    color: theme.colors.primaryVariant,
+    marginBottom: theme.spacing.xxl,
     textAlign: 'center',
   },
   description: {
-    fontSize: 16,
-    color: '#6b7280',
+    fontSize: theme.typeSize.body,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: theme.spacing.huge,
   },
   buttonContainer: {
     width: '100%',
-    gap: 16,
+    gap: theme.spacing.lg,
   },
   button: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.xxl,
+    borderRadius: theme.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 56,
   },
   primaryButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: theme.colors.primary,
   },
   secondaryButton: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.colors.surface,
     borderWidth: 2,
-    borderColor: '#2563eb',
+    borderColor: theme.colors.primary,
   },
   backButton: {
     backgroundColor: 'transparent',
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '600',
-    color: '#ffffff',
+    color: theme.colors.onPrimary,
   },
   secondaryButtonText: {
-    color: '#2563eb',
+    color: theme.colors.primaryVariant,
   },
   backButtonText: {
-    color: '#6b7280',
+    color: theme.colors.textSecondary,
   },
   tipsContainer: {
-    marginTop: 40,
-    paddingHorizontal: 20,
+    marginTop: theme.spacing.huge,
+    paddingHorizontal: theme.spacing.xl,
   },
   tipsTitle: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.md,
     textAlign: 'center',
   },
   tip: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 8,
+    fontSize: theme.typeSize.small,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
 });

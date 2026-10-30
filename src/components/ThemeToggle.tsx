@@ -9,6 +9,7 @@ interface ThemeToggleProps {
 
 export const ThemeToggle: React.FC<ThemeToggleProps> = ({ size = 24 }) => {
   const { theme, themeMode, toggleTheme } = useTheme();
+  const styles = makeStyles(theme);
 
   const getIconName = () => {
     if (themeMode === 'system') {
@@ -26,6 +27,8 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ size = 24 }) => {
         },
       ]}
       onPress={toggleTheme}
+      accessibilityRole="button"
+      accessibilityLabel={`Theme setting: ${themeMode}`}
     >
       <Ionicons
         name={getIconName() as any}
@@ -36,11 +39,13 @@ export const ThemeToggle: React.FC<ThemeToggleProps> = ({ size = 24 }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
-    padding: 8,
-    borderRadius: 20,
+    minWidth: 44,
+    minHeight: 44,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
   },
-}); 
+});

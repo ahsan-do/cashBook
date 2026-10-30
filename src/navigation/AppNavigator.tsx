@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,6 +19,7 @@ import { InvitationsScreen } from '../screens/InvitationsScreen';
 import { AccountSettingsScreen } from '../screens/AccountSettingsScreen';
 import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
 import { ThemeSettingsScreen } from '../screens/ThemeSettingsScreen';
+import { BookMembersScreen } from '../screens/BookMembersScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -48,21 +50,30 @@ const MainTabNavigator = () => {
           if (route.name === 'Home') {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Groups') {
-            iconName = focused ? 'people' : 'people-outline';
+            iconName = focused ? 'wallet' : 'wallet-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           } else {
             iconName = 'help-outline';
           }
 
-          return <Ionicons name={iconName} size={size} color={color} />;
+          return (
+            <View style={{ width: 38, height: 30, borderRadius: 15, backgroundColor: focused ? theme.colors.primary : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={iconName} size={size} color={focused ? theme.colors.onPrimary : color} />
+            </View>
+          );
         },
-        tabBarActiveTintColor: theme.colors.primary,
+        tabBarActiveTintColor: theme.colors.text,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
+          height: 62,
+          paddingTop: theme.spacing.xs,
+          paddingBottom: theme.spacing.xs,
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,
         },
+        tabBarLabelStyle: { fontSize: theme.typeSize.caption, fontWeight: '600' },
+        tabBarLabel: route.name === 'Groups' ? 'Books' : route.name,
         headerShown: false,
       })}
     >
@@ -78,6 +89,7 @@ const MainStack = () => (
     <Stack.Screen name="MainTabs" component={MainTabNavigator} />
     <Stack.Screen name="CreateGroup" component={CreateGroupScreen} />
     <Stack.Screen name="GroupDetails" component={GroupDetailsScreen} />
+    <Stack.Screen name="BookMembers" component={BookMembersScreen} />
     <Stack.Screen name="Invitations" component={InvitationsScreen} />
     <Stack.Screen name="AccountSettings" component={AccountSettingsScreen} />
     <Stack.Screen name="ThemeSettings" component={ThemeSettingsScreen} />

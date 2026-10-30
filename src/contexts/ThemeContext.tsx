@@ -1,99 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ThemeMode, Theme, ThemeContextType, ThemeColors } from '../types';
+import { ThemeMode, Theme, ThemeContextType } from '../types';
+import { darkColors, lightColors, themeTokens } from '../theme';
 
 const THEME_MODE_KEY = 'theme_mode';
-
-// Light theme colors
-const lightColors: ThemeColors = {
-  // Background colors
-  background: '#f9fafb',
-  surface: '#ffffff',
-  surfaceVariant: '#f8fafc',
-  
-  // Text colors
-  text: '#1f2937',
-  textSecondary: '#6b7280',
-  textTertiary: '#9ca3af',
-  
-  // Primary colors
-  primary: '#2563eb',
-  primaryVariant: '#1d4ed8',
-  onPrimary: '#ffffff',
-  
-  // Secondary colors
-  secondary: '#10b981',
-  secondaryVariant: '#059669',
-  onSecondary: '#ffffff',
-  
-  // Error colors
-  error: '#dc2626',
-  onError: '#ffffff',
-  
-  // Success colors
-  success: '#10b981',
-  onSuccess: '#ffffff',
-  
-  // Warning colors
-  warning: '#f59e0b',
-  onWarning: '#ffffff',
-  
-  // Border colors
-  border: '#e5e7eb',
-  borderLight: '#f3f4f6',
-  
-  // Shadow colors
-  shadow: '#000000',
-  
-  // Status bar
-  statusBar: 'dark' as const,
-};
-
-// Dark theme colors
-const darkColors: ThemeColors = {
-  // Background colors
-  background: '#111827',
-  surface: '#1f2937',
-  surfaceVariant: '#374151',
-  
-  // Text colors
-  text: '#f9fafb',
-  textSecondary: '#d1d5db',
-  textTertiary: '#9ca3af',
-  
-  // Primary colors
-  primary: '#3b82f6',
-  primaryVariant: '#60a5fa',
-  onPrimary: '#ffffff',
-  
-  // Secondary colors
-  secondary: '#10b981',
-  secondaryVariant: '#34d399',
-  onSecondary: '#ffffff',
-  
-  // Error colors
-  error: '#ef4444',
-  onError: '#ffffff',
-  
-  // Success colors
-  success: '#10b981',
-  onSuccess: '#ffffff',
-  
-  // Warning colors
-  warning: '#f59e0b',
-  onWarning: '#ffffff',
-  
-  // Border colors
-  border: '#374151',
-  borderLight: '#4b5563',
-  
-  // Shadow colors
-  shadow: '#000000',
-  
-  // Status bar
-  statusBar: 'light' as const,
-};
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
@@ -156,7 +67,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   // Determine the actual theme based on mode and system preference
   const getActualTheme = (): Theme => {
     let isDark = false;
-    
+
     switch (themeMode) {
       case 'light':
         isDark = false;
@@ -177,6 +88,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     return {
       colors: isDark ? darkColors : lightColors,
       isDark,
+      ...themeTokens,
     };
   };
 
@@ -194,8 +106,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     const loadingTheme = {
       colors: systemColorScheme === 'dark' ? darkColors : lightColors,
       isDark: systemColorScheme === 'dark',
+      ...themeTokens,
     };
-    
+
     return (
       <ThemeContext.Provider value={{
         theme: loadingTheme,
@@ -213,4 +126,4 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       {children}
     </ThemeContext.Provider>
   );
-}; 
+};

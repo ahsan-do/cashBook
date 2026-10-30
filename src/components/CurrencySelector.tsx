@@ -13,6 +13,7 @@ interface CurrencySelectorProps {
 export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onClose }) => {
   const { selectedCurrency, currencies, setCurrency } = useCurrency();
   const { theme } = useTheme();
+  const styles = makeStyles(theme);
 
   const handleCurrencySelect = (currency: Currency) => {
     setCurrency(currency);
@@ -35,7 +36,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
         ]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Select Currency</Text>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close currency selector" style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}>
               <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
@@ -47,8 +48,8 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
                 style={[
                   styles.currencyItem,
                   {
-                    backgroundColor: selectedCurrency === currency.code 
-                      ? theme.colors.primary 
+                    backgroundColor: selectedCurrency === currency.code
+                      ? theme.colors.primary
                       : theme.colors.surfaceVariant,
                     borderColor: theme.colors.border,
                   },
@@ -60,8 +61,8 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
                   <Text style={[
                     styles.currencySymbol,
                     {
-                      color: selectedCurrency === currency.code 
-                        ? theme.colors.onPrimary 
+                      color: selectedCurrency === currency.code
+                        ? theme.colors.onPrimary
                         : theme.colors.text,
                     },
                   ]}>{currency.symbol}</Text>
@@ -69,16 +70,16 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
                     <Text style={[
                       styles.currencyName,
                       {
-                        color: selectedCurrency === currency.code 
-                          ? theme.colors.onPrimary 
+                        color: selectedCurrency === currency.code
+                          ? theme.colors.onPrimary
                           : theme.colors.text,
                       },
                     ]}>{currency.name}</Text>
                     <Text style={[
                       styles.currencyCode,
                       {
-                        color: selectedCurrency === currency.code 
-                          ? theme.colors.onPrimary 
+                        color: selectedCurrency === currency.code
+                          ? theme.colors.onPrimary
                           : theme.colors.textSecondary,
                       },
                     ]}>{currency.code}</Text>
@@ -96,7 +97,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({ visible, onC
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   modalOverlay: {
     position: 'absolute',
     top: 0,
@@ -107,30 +108,31 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: theme.radius.xl,
+    borderTopRightRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
     maxHeight: '60%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.xl,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: theme.typeSize.title,
     fontWeight: 'bold',
   },
   currencyList: {
-    gap: 12,
+    gap: theme.spacing.md,
   },
   currencyItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
+    minHeight: 64,
+    padding: theme.spacing.lg,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
   },
   selectedCurrency: {
@@ -142,19 +144,19 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   currencySymbol: {
-    fontSize: 24,
+    fontSize: theme.typeSize.title,
     fontWeight: 'bold',
-    marginRight: 16,
+    marginRight: theme.spacing.lg,
   },
   currencyDetails: {
     flex: 1,
   },
   currencyName: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '600',
-    marginBottom: 2,
+    marginBottom: theme.spacing.xxs,
   },
   currencyCode: {
-    fontSize: 14,
+    fontSize: theme.typeSize.small,
   },
-}); 
+});

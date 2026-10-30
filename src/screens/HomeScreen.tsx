@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
   RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,30 +14,30 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Book, PendingInvitation, Transaction } from '../types';
 import { bookService } from '../services/bookService';
-import { transactionService } from '../services/transactionService';
 import { invitationService } from '../services/invitationService';
+import { transactionService } from '../services/transactionService';
 import { formatMoney } from '../services/money';
 import { toServiceError } from '../services/serviceErrors';
+import { QuickAddSheet } from '../components/QuickAddSheet';
+import { BalanceAmount } from '../components/BalanceAmount';
+import { categoryIcon } from '../theme/categories';
 
 interface HomeScreenProps { navigation: any; }
-type BookTotals = { cashInTotal: number; cashOutTotal: number; netBalance: number };
+type BookOverview = { book: Book; cashIn: number; cashOut: number; balance: number; recent: Transaction[] };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const [books, setBooks] = useState<Book[]>([]);
-  const [totals, setTotals] = useState<Record<string, BookTotals>>({});
-  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [overviews, setOverviews] = useState<BookOverview[]>([]);
   const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quickAddVisible, setQuickAddVisible] = useState(false);
 
   const loadHome = useCallback(async () => {
     if (!user?.id) {
-      setBooks([]);
-      setTotals({});
-      setRecentTransactions([]);
+      setOverviews([]);
       setPendingInvitations([]);
       setLoading(false);
       setError(null);
@@ -45,26 +45,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
     setError(null);
     try {
-      const [myBooks, invitations] = await Promise.all([
+      const [books, invitations] = await Promise.all([
         bookService.listMyBooks(user.id),
         invitationService.listMyPendingInvitations(),
       ]);
-      const [bookTotals, transactionPages] = await Promise.all([
-        Promise.all(myBooks.map(async (book) => [book.id, await transactionService.getBookTotals(book.id)] as const)),
-        Promise.all(myBooks.map(async (book) => ({
-          bookId: book.id,
-          page: await transactionService.pageTransactions({ bookId: book.id, pageSize: 3 }),
-        }))),
-      ]);
-      const mergedTransactions = transactionPages
-        .flatMap(({ page }) => page.transactions)
-        .sort((a, b) => b.entryDate.localeCompare(a.entryDate)
-          || b.createdAt.localeCompare(a.createdAt)
-          || b.id.localeCompare(a.id))
-        .slice(0, 5);
-      setBooks(myBooks);
-      setTotals(Object.fromEntries(bookTotals));
-      setRecentTransactions(mergedTransactions);
+      const data = await Promise.all(books.map(async (book): Promise<BookOverview> => {
+        const [totals, page] = await Promise.all([
+          transactionService.getBookTotals(book.id),
+          transactionService.pageTransactions({ bookId: book.id, pageSize: 3 }),
+        ]);
+        return { book, cashIn: totals.cashInTotal, cashOut: totals.cashOutTotal, balance: totals.netBalance, recent: page.transactions };
+      }));
+      setOverviews(data);
       setPendingInvitations(invitations);
     } catch (loadError) {
       setError(toServiceError(loadError, 'Could not load your cashbook overview').message);
@@ -74,111 +66,103 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   }, [user?.id]);
 
   useEffect(() => { void loadHome(); }, [loadHome]);
-
-  const onRefresh = useCallback(async () => {
+  const refresh = async () => {
     setRefreshing(true);
     try { await loadHome(); } finally { setRefreshing(false); }
-  }, [loadHome]);
-
-  const bookById = useMemo(() => new Map(books.map((book) => [book.id, book])), [books]);
-
-  const renderBookCard = (book: Book) => {
-    const bookTotals = totals[book.id];
-    return (
-      <TouchableOpacity
-        key={book.id}
-        style={[styles.bookCard, { backgroundColor: theme.colors.surfaceVariant }]}
-        onPress={() => navigation.navigate('GroupDetails', { bookId: book.id, name: book.name })}
-      >
-        <View style={styles.bookInfo}>
-          <Text style={[styles.bookName, { color: theme.colors.text }]}>{book.name}</Text>
-          {!!book.description && <Text style={[styles.bookDescription, { color: theme.colors.textSecondary }]} numberOfLines={1}>{book.description}</Text>}
-          {bookTotals ? (
-            <>
-              <Text style={[styles.totalLine, { color: theme.colors.success }]}>In {formatMoney(bookTotals.cashInTotal, book.currencyCode)}</Text>
-              <Text style={[styles.totalLine, { color: theme.colors.error }]}>Out {formatMoney(bookTotals.cashOutTotal, book.currencyCode)}</Text>
-              <Text style={[styles.totalLine, { color: theme.colors.textSecondary }]}>Balance {formatMoney(bookTotals.netBalance, book.currencyCode)}</Text>
-            </>
-          ) : <ActivityIndicator size="small" color={theme.colors.primary} />}
-        </View>
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-      </TouchableOpacity>
-    );
   };
+  const books = useMemo(() => overviews.map(({ book }) => book), [overviews]);
+  const styles = useMemo(() => makeStyles(theme), [theme]);
+
+  const openBook = (book: Book) => navigation.navigate('GroupDetails', { bookId: book.id, name: book.name });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
-        <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-          <View>
-            <Text style={[styles.greeting, { color: theme.colors.text }]}>Hello, {user?.displayName}!</Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Here's your cashbook overview</Text>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scrollContent} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={theme.colors.primary} />}>
+        <View style={styles.header}>
+          <View style={styles.headerCopy}>
+            <Text style={styles.greeting}>Hello, {user?.displayName}</Text>
+            <Text style={styles.subtitle}>Your books at a glance</Text>
           </View>
-          {pendingInvitations.length > 0 && (
-            <TouchableOpacity style={styles.invitationButton} onPress={() => navigation.navigate('Invitations')} accessibilityLabel={`${pendingInvitations.length} pending invitations`}>
-              <Ionicons name="mail" size={24} color={theme.colors.primary} />
-              <View style={[styles.invitationBadge, { backgroundColor: theme.colors.error }]}><Text style={[styles.invitationCount, { color: theme.colors.onError }]}>{pendingInvitations.length}</Text></View>
-            </TouchableOpacity>
-          )}
+          {pendingInvitations.length > 0 && <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Invitations')} accessibilityRole="button" accessibilityLabel={`${pendingInvitations.length} pending invitations`}>
+            <Ionicons name="mail-outline" size={23} color={theme.colors.primaryVariant} />
+            <View style={styles.invitationBadge}><Text style={styles.badgeText}>{pendingInvitations.length}</Text></View>
+          </TouchableOpacity>}
         </View>
 
-        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Your Books</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Groups')}><Text style={[styles.seeAllText, { color: theme.colors.primary }]}>See All</Text></TouchableOpacity>
-          </View>
-          {loading ? <View style={styles.loadingContainer}><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your books...</Text></View>
-            : error ? <View style={styles.emptyState}><Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{error}</Text><TouchableOpacity onPress={() => { setLoading(true); void loadHome(); }}><Text style={[styles.seeAllText, { color: theme.colors.primary }]}>Retry</Text></TouchableOpacity></View>
-              : books.length === 0 ? <View style={styles.emptyState}><Ionicons name="wallet-outline" size={48} color={theme.colors.textTertiary} /><Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>No books yet</Text><Text style={[styles.emptyStateSubtext, { color: theme.colors.textTertiary }]}>Create a book to start tracking transactions</Text><TouchableOpacity style={[styles.createBookButton, { backgroundColor: theme.colors.primary }]} onPress={() => navigation.navigate('CreateGroup')}><Text style={[styles.createBookButtonText, { color: theme.colors.onPrimary }]}>Create Book</Text></TouchableOpacity></View>
-                : <ScrollView horizontal showsHorizontalScrollIndicator={false}>{books.slice(0, 3).map(renderBookCard)}</ScrollView>}
-        </View>
-
-        <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-          <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Recent Transactions</Text></View>
-          {loading ? <View style={styles.loadingContainer}><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading transactions...</Text></View>
-            : error ? <View style={styles.emptyState}><Text style={[styles.emptyStateText, { color: theme.colors.error }]}>{error}</Text><TouchableOpacity onPress={() => { setLoading(true); void loadHome(); }}><Text style={[styles.seeAllText, { color: theme.colors.primary }]}>Retry</Text></TouchableOpacity></View>
-              : recentTransactions.length === 0 ? <View style={styles.emptyState}><Ionicons name="receipt-outline" size={48} color={theme.colors.textTertiary} /><Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>No transactions yet</Text><Text style={[styles.emptyStateSubtext, { color: theme.colors.textTertiary }]}>Add transactions to your books to see them here</Text></View>
-                : recentTransactions.map((transaction) => {
-                  const book = bookById.get(transaction.bookId);
-                  const incoming = transaction.type === 'cash_in';
-                  return <TouchableOpacity key={transaction.id} style={[styles.transactionItem, { borderBottomColor: theme.colors.borderLight }]} onPress={() => book && navigation.navigate('GroupDetails', { bookId: book.id, name: book.name })}>
-                    <View style={styles.transactionInfo}><Text style={[styles.transactionTitle, { color: theme.colors.text }]}>{transaction.title}</Text><Text style={[styles.transactionCategory, { color: theme.colors.textSecondary }]}>{book?.name ?? ''} · {transaction.category} · {transaction.entryDate}</Text></View>
-                    {book && <Text style={[styles.transactionAmount, { color: incoming ? theme.colors.success : theme.colors.error }]}>{incoming ? '+' : '−'}{formatMoney(transaction.amount, book.currencyCode)}</Text>}
-                  </TouchableOpacity>;
-                })}
-        </View>
+        {loading ? <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.stateText}>Loading your books…</Text></View>
+          : error ? <View style={styles.state}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); void loadHome(); }}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View>
+            : overviews.length === 0 ? <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}><Ionicons name="wallet-outline" size={34} color={theme.colors.primaryVariant} /></View>
+              <Text style={styles.emptyTitle}>Start your first cash book</Text>
+              <Text style={styles.emptyCopy}>Keep cash in and cash out together, with a clear running balance.</Text>
+              <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('CreateGroup')} accessibilityRole="button"><Text style={styles.primaryButtonText}>Create your first book</Text></TouchableOpacity>
+            </View>
+              : <View style={styles.bookList}>{overviews.map(({ book, cashIn, cashOut, balance, recent }) => (
+                <View key={book.id} style={styles.bookCard}>
+                  <TouchableOpacity onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${book.name}`}>
+                    <View style={styles.bookTop}><Text style={styles.bookName} numberOfLines={1}>{book.name}</Text><Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /></View>
+                    <Text style={styles.balanceLabel}>Net balance</Text>
+                    <BalanceAmount compact amount={balance} currencyCode={book.currencyCode} />
+                    <Text style={styles.flowLine}><Text style={{ color: theme.colors.success }}>In {formatMoney(cashIn, book.currencyCode)}</Text><Text style={{ color: theme.colors.textTertiary }}>  ·  </Text><Text style={{ color: theme.colors.error }}>Out {formatMoney(cashOut, book.currencyCode)}</Text></Text>
+                  </TouchableOpacity>
+                  {recent.length > 0 && <View style={styles.recentBlock}>
+                    <Text style={styles.recentHeading}>Recent</Text>
+                    {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${transaction.title} in ${book.name}`}>
+                      <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category)} size={16} color={theme.colors.textSecondary} /></View>
+                      <View style={styles.recentCopy}><Text style={styles.recentTitle} numberOfLines={1}>{transaction.title}</Text><Text style={styles.recentDate}>{transaction.entryDate}</Text></View>
+                      <View style={styles.recentValue}><Ionicons name={transaction.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={14} color={transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.recentAmount, { color: transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{transaction.type === 'cash_in' ? '+' : '−'}{formatMoney(transaction.amount, book.currencyCode)}</Text></View>
+                    </TouchableOpacity>)}
+                  </View>}
+                </View>
+              ))}</View>}
+        {overviews.length > 0 && <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Groups')} accessibilityRole="button"><Text style={styles.seeAllText}>All books</Text><Ionicons name="arrow-forward" size={16} color={theme.colors.primaryVariant} /></TouchableOpacity>}
       </ScrollView>
+      {overviews.length > 0 && !loading && <TouchableOpacity style={styles.fab} onPress={() => setQuickAddVisible(true)} accessibilityRole="button" accessibilityLabel="Add a transaction">
+        <Ionicons name="add" size={28} color={theme.colors.onPrimary} />
+      </TouchableOpacity>}
+      <QuickAddSheet visible={quickAddVisible} books={books} onClose={() => setQuickAddVisible(false)} onSaved={loadHome} />
     </SafeAreaView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { padding: 20, borderBottomWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  greeting: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
-  subtitle: { fontSize: 16 },
-  invitationButton: { position: 'relative', padding: 4 },
-  invitationBadge: { position: 'absolute', top: -4, right: -4, borderRadius: 10, minWidth: 20, height: 20, paddingHorizontal: 4, justifyContent: 'center', alignItems: 'center' },
-  invitationCount: { fontSize: 12, fontWeight: 'bold' },
-  section: { margin: 20, borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 3.84, elevation: 5 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: '600' },
-  seeAllText: { fontWeight: '500' },
-  emptyState: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 12 },
-  emptyStateText: { fontSize: 16, fontWeight: '500', marginTop: 12, textAlign: 'center' },
-  emptyStateSubtext: { fontSize: 14, textAlign: 'center', marginTop: 4, marginBottom: 16 },
-  createBookButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
-  createBookButtonText: { fontWeight: '600' },
-  bookCard: { padding: 16, borderRadius: 8, marginRight: 12, minWidth: 190, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  bookInfo: { flex: 1 },
-  bookName: { fontSize: 16, fontWeight: '600', marginBottom: 4 },
-  bookDescription: { fontSize: 13, marginBottom: 6 },
-  totalLine: { fontSize: 12, marginTop: 3 },
-  transactionItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1 },
-  transactionInfo: { flex: 1, paddingRight: 12 },
-  transactionTitle: { fontSize: 16, fontWeight: '500' },
-  transactionCategory: { fontSize: 13, marginTop: 3 },
-  transactionAmount: { fontSize: 15, fontWeight: '600' },
-  loadingContainer: { alignItems: 'center', paddingVertical: 32, gap: 8 },
-  loadingText: { fontSize: 14 },
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  scrollContent: { padding: theme.spacing.xl, paddingBottom: theme.spacing.huge },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xxl },
+  headerCopy: { flex: 1 },
+  greeting: { fontSize: theme.typeSize.title, fontWeight: '700', color: theme.colors.text },
+  subtitle: { fontSize: theme.typeSize.small, color: theme.colors.textSecondary, marginTop: theme.spacing.xs },
+  iconButton: { minWidth: 48, minHeight: 48, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface },
+  invitationBadge: { position: 'absolute', right: 1, top: 1, minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
+  badgeText: { color: theme.colors.onPrimary, fontSize: theme.typeSize.caption, fontWeight: '700' },
+  state: { alignItems: 'center', padding: theme.spacing.xxxl, gap: theme.spacing.md },
+  stateText: { fontSize: theme.typeSize.body, color: theme.colors.textSecondary },
+  errorText: { fontSize: theme.typeSize.body, color: theme.colors.error, textAlign: 'center' },
+  retryButton: { minHeight: 44, paddingHorizontal: theme.spacing.lg, justifyContent: 'center' },
+  retryText: { color: theme.colors.primaryVariant, fontWeight: '700', fontSize: theme.typeSize.body },
+  emptyState: { alignItems: 'center', paddingHorizontal: theme.spacing.xxl, paddingTop: 72, paddingBottom: 72 },
+  emptyIcon: { width: 72, height: 72, borderRadius: theme.radius.xl, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceVariant },
+  emptyTitle: { fontSize: theme.typeSize.title, color: theme.colors.text, fontWeight: '700', marginTop: theme.spacing.xl, textAlign: 'center' },
+  emptyCopy: { fontSize: theme.typeSize.body, color: theme.colors.textSecondary, textAlign: 'center', marginTop: theme.spacing.sm, lineHeight: 24 },
+  primaryButton: { minHeight: 52, paddingHorizontal: theme.spacing.xxl, borderRadius: theme.radius.md, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: theme.spacing.xxl },
+  primaryButtonText: { fontSize: theme.typeSize.body, color: theme.colors.onPrimary, fontWeight: '700' },
+  bookList: { gap: theme.spacing.md },
+  bookCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.borderLight },
+  bookTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  bookName: { flex: 1, color: theme.colors.text, fontSize: theme.typeSize.subtitle, fontWeight: '700' },
+  balanceLabel: { marginTop: theme.spacing.md, color: theme.colors.textSecondary, fontSize: theme.typeSize.small },
+  balance: { marginTop: theme.spacing.xs },
+  flowLine: { fontSize: theme.typeSize.caption, marginTop: theme.spacing.xs },
+  recentBlock: { marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.borderLight },
+  recentHeading: { fontSize: theme.typeSize.caption, fontWeight: '700', color: theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.xs },
+  recentRow: { minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.sm },
+  categoryIcon: { width: 34, height: 34, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceVariant },
+  recentCopy: { flex: 1 },
+  recentTitle: { color: theme.colors.text, fontSize: theme.typeSize.small, fontWeight: '600' },
+  recentDate: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, marginTop: 2 },
+  recentValue: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xxs },
+  recentAmount: { fontSize: theme.typeSize.caption, fontWeight: '700' },
+  seeAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, minHeight: 48, marginTop: theme.spacing.sm },
+  seeAllText: { color: theme.colors.primaryVariant, fontWeight: '700', fontSize: theme.typeSize.small },
+  fab: { position: 'absolute', right: theme.spacing.xl, bottom: theme.spacing.xl, minWidth: 60, minHeight: 60, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary, elevation: 5, shadowColor: theme.colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6 },
 });

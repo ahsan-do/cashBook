@@ -23,6 +23,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, isEmailVerified, logout, sendEmailVerification } = useAuth();
   const { selectedCurrency, currencies } = useCurrency();
   const { theme, themeMode } = useTheme();
+  const styles = makeStyles(theme);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [invitationCount, setInvitationCount] = useState(0);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
@@ -243,14 +244,14 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
   },
   header: {
-    padding: 20,
+    padding: theme.spacing.xl,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.colors.border,
   },
   profileInfo: {
     flexDirection: 'row',
@@ -259,36 +260,37 @@ const styles = StyleSheet.create({
   avatar: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: theme.radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: theme.spacing.lg,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 24,
+    fontSize: theme.typeSize.title,
     fontWeight: 'bold',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
   userEmail: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
   },
   section: {
-    margin: 20,
+    margin: theme.spacing.xl,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: theme.typeSize.subtitle,
     fontWeight: '600',
-    marginBottom: 16,
+    marginBottom: theme.spacing.lg,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    minHeight: 60,
+    paddingVertical: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
     borderBottomWidth: 1,
   },
   menuItemLeft: {
@@ -297,35 +299,36 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   menuItemText: {
-    marginLeft: 16,
+    marginLeft: theme.spacing.lg,
     flex: 1,
   },
   menuItemTitle: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '500',
-    marginBottom: 2,
+    marginBottom: theme.spacing.xxs,
   },
   menuItemSubtitle: {
-    fontSize: 14,
+    fontSize: theme.typeSize.small,
   },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
+    minHeight: 56,
+    paddingVertical: theme.spacing.lg,
+    borderRadius: theme.radius.sm,
     borderWidth: 1,
   },
   logoutText: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '600',
-    marginLeft: 8,
+    marginLeft: theme.spacing.sm,
   },
   footer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: theme.spacing.xl,
   },
   versionText: {
-    fontSize: 14,
+    fontSize: theme.typeSize.small,
   },
 });

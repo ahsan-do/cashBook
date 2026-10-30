@@ -24,6 +24,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
   const { theme } = useTheme();
+  const styles = makeStyles(theme);
 
   const handleLogin = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -134,7 +135,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
               <View style={styles.footer}>
                 <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Don't have an account? </Text>
                 <TouchableOpacity onPress={() => navigation.navigate('SignUp')}>
-                  <Text style={[styles.linkText, { color: theme.colors.primary }]}>Sign Up</Text>
+                  <Text style={[styles.linkText, { color: theme.colors.primaryVariant }]}>Sign Up</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -145,60 +146,63 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: theme.spacing.xxl,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
   },
   header: {
-    marginBottom: 32,
+    marginBottom: theme.spacing.xxxl,
   },
   title: {
-    fontSize: 32,
+    fontSize: theme.typeSize.display,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   subtitle: {
     textAlign: 'center',
   },
   form: {
-    gap: 16,
+    gap: theme.spacing.lg,
   },
   inputContainer: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.lg,
   },
   label: {
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
     fontWeight: '500',
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    minHeight: 48,
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
   },
   button: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 24,
+    minHeight: 52,
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.md,
+    borderRadius: theme.radius.sm,
+    marginTop: theme.spacing.xxl,
   },
   buttonText: {
     textAlign: 'center',
     fontWeight: '600',
-    fontSize: 18,
+    fontSize: theme.typeSize.subtitle,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 24,
+    marginTop: theme.spacing.xxl,
   },
   footerText: {
     // Color will be applied via theme

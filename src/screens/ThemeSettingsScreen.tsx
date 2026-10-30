@@ -11,7 +11,8 @@ interface ThemeSettingsScreenProps {
 
 export const ThemeSettingsScreen: React.FC<ThemeSettingsScreenProps> = ({ navigation }) => {
   const { theme, themeMode, setThemeMode } = useTheme();
-  
+  const styles = makeStyles(theme);
+
   const themeOptions = [
     {
       mode: 'light' as ThemeMode,
@@ -49,7 +50,7 @@ export const ThemeSettingsScreen: React.FC<ThemeSettingsScreenProps> = ({ naviga
       >
         <View style={styles.themeOptionContent}>
           <View style={[styles.iconContainer, { backgroundColor: theme.colors.surfaceVariant }]}>
-            <Ionicons name={option.icon as any} size={24} color={theme.colors.primary} />
+            <Ionicons name={option.icon as any} size={24} color={theme.colors.primaryVariant} />
           </View>
           <View style={styles.themeOptionText}>
             <Text style={[styles.themeOptionTitle, { color: theme.colors.text }]}>
@@ -60,7 +61,7 @@ export const ThemeSettingsScreen: React.FC<ThemeSettingsScreenProps> = ({ naviga
             </Text>
           </View>
           {isSelected && (
-            <Ionicons name="checkmark-circle" size={24} color={theme.colors.primary} />
+            <Ionicons name="checkmark-circle" size={24} color={theme.colors.primaryVariant} />
           )}
         </View>
       </TouchableOpacity>
@@ -70,13 +71,13 @@ export const ThemeSettingsScreen: React.FC<ThemeSettingsScreenProps> = ({ naviga
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>Theme Settings</Text>
         <View style={styles.headerSpacer} />
       </View>
-      
+
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Choose Theme</Text>
@@ -93,23 +94,24 @@ export const ThemeSettingsScreen: React.FC<ThemeSettingsScreenProps> = ({ naviga
   );
 };
 
-const styles = StyleSheet.create({
+const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: {
     flex: 1,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
   },
   backButton: {
-    padding: 8,
-    marginRight: 8,
+    minWidth: 48,
+    minHeight: 48,
+    marginRight: theme.spacing.sm,
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: theme.typeSize.subtitle,
     fontWeight: '600',
     flex: 1,
     textAlign: 'center',
@@ -121,27 +123,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    padding: 20,
+    padding: theme.spacing.xl,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: theme.spacing.xxl,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: theme.typeSize.title,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   sectionDescription: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     lineHeight: 22,
   },
   themeOptions: {
-    gap: 12,
+    gap: theme.spacing.md,
   },
   themeOption: {
-    borderRadius: 12,
+    borderRadius: theme.radius.md,
     borderWidth: 2,
-    padding: 16,
+    padding: theme.spacing.lg,
   },
   themeOptionContent: {
     flexDirection: 'row',
@@ -156,37 +158,37 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: theme.radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginRight: theme.spacing.lg,
   },
   themeOptionText: {
     flex: 1,
   },
   themeOptionTitle: {
-    fontSize: 16,
+    fontSize: theme.typeSize.body,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
   themeOptionDescription: {
-    fontSize: 14,
+    fontSize: theme.typeSize.small,
     lineHeight: 20,
   },
   infoSection: {
-    marginTop: 32,
+    marginTop: theme.spacing.xxxl,
   },
   infoCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 16,
-    borderRadius: 12,
+    padding: theme.spacing.lg,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
   },
   infoText: {
-    fontSize: 14,
+    fontSize: theme.typeSize.small,
     lineHeight: 20,
-    marginLeft: 12,
+    marginLeft: theme.spacing.md,
     flex: 1,
   },
-}); 
+});
