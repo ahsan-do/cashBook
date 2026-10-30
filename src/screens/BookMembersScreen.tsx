@@ -8,6 +8,7 @@ import { Book, Invitation, Member } from '../types';
 import { bookService } from '../services/bookService';
 import { invitationService } from '../services/invitationService';
 import { toServiceError } from '../services/serviceErrors';
+import { formatEntryDate } from '../utils/dateDisplay';
 
 interface Props { navigation: any; route: any; }
 
@@ -107,7 +108,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
           {isOwner && <>
             <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Invitations</Text><TouchableOpacity style={styles.rowAction} onPress={() => void load()} accessibilityRole="button" accessibilityLabel="Refresh invitations"><Ionicons name="refresh" size={19} color={theme.colors.primaryVariant} /></TouchableOpacity></View>
             <View style={styles.card}>{invitations.length === 0 ? <Text style={styles.muted}>No pending invitations.</Text> : invitations.map((invitation) => <View key={invitation.id} style={styles.row}>
-              <View style={styles.memberCopy}><Text style={styles.memberName}>{invitation.invitedEmail}</Text><Text style={styles.memberRole}>Expires {new Date(invitation.expiresAt).toLocaleDateString()}</Text></View>
+              <View style={styles.memberCopy}><Text style={styles.memberName}>{invitation.invitedEmail}</Text><Text style={styles.memberRole}>Expires {formatEntryDate(invitation.expiresAt.slice(0, 10))}</Text></View>
               <TouchableOpacity style={styles.rowAction} onPress={() => revokeInvitation(invitation)} disabled={actionId === invitation.id} accessibilityRole="button" accessibilityLabel={`Revoke invitation for ${invitation.invitedEmail}`}><Text style={styles.revokeText}>{actionId === invitation.id ? '…' : 'Revoke'}</Text></TouchableOpacity>
             </View>)}</View>
           </>}

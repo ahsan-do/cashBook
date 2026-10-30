@@ -16,6 +16,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { PendingInvitation } from '../types';
 import { invitationService } from '../services/invitationService';
 import { toServiceError } from '../services/serviceErrors';
+import { formatEntryDate } from '../utils/dateDisplay';
 
 interface InvitationsScreenProps { navigation: any; }
 
@@ -78,7 +79,7 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{invitation.bookName}</Text>
           <Text style={styles.inviterText}>Invited by {invitation.inviterDisplayName || 'Book owner'}</Text>
-          <Text style={styles.invitationDate}>Expires {new Date(invitation.expiresAt).toLocaleDateString()}</Text>
+          <Text style={styles.invitationDate}>Expires {formatEntryDate(invitation.expiresAt.slice(0, 10))}</Text>
         </View>
         <View style={styles.statusBadge}><Text style={styles.statusText}>Pending</Text></View>
       </View>

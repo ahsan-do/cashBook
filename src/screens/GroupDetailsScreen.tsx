@@ -13,20 +13,11 @@ import { toServiceError } from '../services/serviceErrors';
 import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
+import { formatEntryDate } from '../utils/dateDisplay';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
 type Totals = { cashInTotal: number; cashOutTotal: number; netBalance: number };
-
-const dateLabel = (date: string) => {
-  const today = new Date();
-  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-  const yesterdayKey = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-  if (date === todayKey) return 'Today';
-  if (date === yesterdayKey) return 'Yesterday';
-  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
-};
 
 export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const bookId: string | undefined = route.params?.bookId;
@@ -114,11 +105,13 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const canDelete = (item: Transaction) => item.createdBy === user?.id || isOwner;
   const renderItem = ({ item }: { item: Transaction }) => {
     const editable = item.createdBy === user?.id;
+    const rowTitle = item.description?.trim() || item.category;
+    const showCategoryInSubtitle = rowTitle !== item.category;
     const row = <TouchableOpacity style={styles.entry} activeOpacity={editable ? 0.7 : 1} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${item.title}` : undefined}>
       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category)} size={18} color={theme.colors.textSecondary} /></View>
       <View style={styles.entryBody}>
-        <Text style={styles.entryTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.entryMeta}>{new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} · {item.category}</Text>
+        <Text style={styles.entryTitle} numberOfLines={1}>{rowTitle}</Text>
+        <Text style={styles.entryMeta}>{new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}{showCategoryInSubtitle ? ` · ${item.category}` : ''}</Text>
       </View>
       <View style={styles.entryAmounts}>
         <View style={styles.signedAmount}><Ionicons name={item.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={15} color={item.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.entryAmount, { color: item.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{item.type === 'cash_in' ? '+' : '−'}{formatMoney(item.amount, currency)}</Text></View>
@@ -159,7 +152,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
           renderSectionHeader={({ section }) => {
             const dailyNet = section.data.reduce((sum, entry) => sum + (entry.type === 'cash_in' ? entry.amount : -entry.amount), 0);
             const incompleteNewestDay = hasMore && section.date === sections[sections.length - 1]?.date;
-            return <View style={styles.dayHeader}><Text style={styles.dayText}>{dateLabel(section.date)}</Text>{!incompleteNewestDay && <Text style={[styles.dayNet, { color: dailyNet >= 0 ? theme.colors.success : theme.colors.error }]}>{dailyNet >= 0 ? '+' : '−'}{formatMoney(Math.abs(dailyNet), currency)}</Text>}</View>;
+            return <View style={styles.dayHeader}><Text style={styles.dayText}>{formatEntryDate(section.date)}</Text>{!incompleteNewestDay && <Text style={[styles.dayNet, { color: dailyNet >= 0 ? theme.colors.success : theme.colors.error }]}>{dailyNet >= 0 ? '+' : '−'}{formatMoney(Math.abs(dailyNet), currency)}</Text>}</View>;
           }}
           stickySectionHeadersEnabled
           contentContainerStyle={sections.length ? styles.listContent : styles.emptyContent}
@@ -190,8 +183,8 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   stateText: { color: theme.colors.textSecondary },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: theme.spacing.lg },
   retryText: { color: theme.colors.primaryVariant, fontWeight: '700' },
-  listContent: { paddingHorizontal: theme.spacing.lg, paddingBottom: 100 },
-  emptyContent: { flexGrow: 1, padding: theme.spacing.lg, paddingBottom: 100 },
+  listContent: { paddingHorizontal: theme.spacing.lg, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
+  emptyContent: { flexGrow: 1, padding: theme.spacing.lg, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
   dayHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.xs, backgroundColor: theme.colors.background },
   dayText: { fontSize: theme.typeSize.small, color: theme.colors.textSecondary, fontWeight: '700' },
   dayNet: { fontSize: theme.typeSize.caption, fontWeight: '700' },

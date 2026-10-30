@@ -4,6 +4,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -40,6 +41,7 @@ const VerificationStack = () => (
 
 const MainTabNavigator = () => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   
   return (
     <Tab.Navigator
@@ -66,9 +68,9 @@ const MainTabNavigator = () => {
         tabBarActiveTintColor: theme.colors.text,
         tabBarInactiveTintColor: theme.colors.textSecondary,
         tabBarStyle: {
-          height: 62,
+          height: 62 + insets.bottom,
           paddingTop: theme.spacing.xs,
-          paddingBottom: theme.spacing.xs,
+          paddingBottom: Math.max(theme.spacing.xs, insets.bottom),
           backgroundColor: theme.colors.surface,
           borderTopColor: theme.colors.border,
         },

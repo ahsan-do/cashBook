@@ -21,6 +21,7 @@ import { toServiceError } from '../services/serviceErrors';
 import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
+import { formatEntryDate } from '../utils/dateDisplay';
 
 interface HomeScreenProps { navigation: any; }
 type BookOverview = { book: Book; cashIn: number; cashOut: number; balance: number; recent: Transaction[] };
@@ -109,7 +110,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <Text style={styles.recentHeading}>Recent</Text>
                     {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${transaction.title} in ${book.name}`}>
                       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category)} size={16} color={theme.colors.textSecondary} /></View>
-                      <View style={styles.recentCopy}><Text style={styles.recentTitle} numberOfLines={1}>{transaction.title}</Text><Text style={styles.recentDate}>{transaction.entryDate}</Text></View>
+                      <View style={styles.recentCopy}><Text style={styles.recentTitle} numberOfLines={1}>{transaction.description?.trim() || transaction.category}</Text><Text style={styles.recentDate}>{formatEntryDate(transaction.entryDate)}</Text></View>
                       <View style={styles.recentValue}><Ionicons name={transaction.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={14} color={transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.recentAmount, { color: transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{transaction.type === 'cash_in' ? '+' : '−'}{formatMoney(transaction.amount, book.currencyCode)}</Text></View>
                     </TouchableOpacity>)}
                   </View>}
@@ -127,7 +128,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
 const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  scrollContent: { padding: theme.spacing.xl, paddingBottom: theme.spacing.huge },
+  scrollContent: { padding: theme.spacing.xl, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: theme.spacing.xxl },
   headerCopy: { flex: 1 },
   greeting: { fontSize: theme.typeSize.title, fontWeight: '700', color: theme.colors.text },

@@ -15,19 +15,21 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Book, Transaction, TransactionType } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { transactionService } from '../services/transactionService';
 import { parseMoneyAmount } from '../services/money';
 import { toServiceError } from '../services/serviceErrors';
 import { categoryOptions } from '../theme/categories';
+import { formatEntryDate } from '../utils/dateDisplay';
 
 const RECENT_CATEGORIES_KEY = 'cashbook_recent_categories';
 const today = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 };
-const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+const dateLabel = (date: string) => formatEntryDate(date);
 
 interface QuickAddSheetProps {
   visible: boolean;
@@ -40,6 +42,7 @@ interface QuickAddSheetProps {
 
 export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, defaultBookId, editingTransaction, onClose, onSaved }) => {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const styles = makeStyles(theme);
   const initialBook = useMemo(() => books.find((book) => book.id === defaultBookId) ?? books[0], [books, defaultBookId]);
   const [bookId, setBookId] = useState(initialBook?.id ?? '');
@@ -168,15 +171,13 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
     date.setUTCDate(date.getUTCDate() + offset);
     setEntryDate(date.toISOString().slice(0, 10));
   };
-  const selectedDateLabel = entryDate === today()
-    ? 'Today'
-    : new Date(`${entryDate}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const selectedDateLabel = formatEntryDate(entryDate);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={onClose} accessibilityLabel="Close quick add" />
-        <View style={[styles.sheet, { backgroundColor: theme.colors.surface }]}>
+        <View style={[styles.sheet, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.lg, insets.bottom + theme.spacing.md) }]}>
           <View style={styles.handleArea}><View style={[styles.handle, { backgroundColor: theme.colors.border }]} /></View>
           <View style={styles.header}>
             <Text style={[styles.heading, { color: theme.colors.text }]}>{editingTransaction ? 'Edit transaction' : 'Quick add'}</Text>
@@ -207,7 +208,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
               })}
             </View>
             <TouchableOpacity style={[styles.dateChip, { borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceVariant }]} onPress={() => setDatePickerVisible((visible) => !visible)} accessibilityRole="button" accessibilityLabel={`Entry date ${selectedDateLabel}, change date`}>
-              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} /><Text style={[styles.dateText, { color: theme.colors.text }]}>{selectedDateLabel} · {entryDate}</Text><Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} /><Text style={[styles.dateText, { color: theme.colors.text }]}>{selectedDateLabel}</Text><Ionicons name="chevron-down" size={16} color={theme.colors.textTertiary} />
             </TouchableOpacity>
             {datePickerVisible && <View style={[styles.datePicker, { backgroundColor: theme.colors.surfaceVariant }]}>
               <TouchableOpacity style={styles.dateControl} onPress={() => shiftDate(-1)} accessibilityRole="button" accessibilityLabel="Previous day"><Ionicons name="chevron-back" size={22} color={theme.colors.text} /></TouchableOpacity>
