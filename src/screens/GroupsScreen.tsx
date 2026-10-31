@@ -19,6 +19,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Book, Member } from '../types';
 import { bookService } from '../services/bookService';
+import { Skeleton } from '../components/Skeleton';
 
 interface GroupsScreenProps {
   navigation: any;
@@ -248,8 +249,11 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         }
         ListEmptyComponent={
           loading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>Loading your books...</Text>
+            <View>
+              {[0, 1, 2].map((item) => <View key={item} style={[styles.groupItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.borderLight }]}>
+                <View style={styles.groupInfo}><Skeleton width="55%" height={18} /><Skeleton width="82%" height={13} style={{ marginTop: theme.spacing.md }} /><View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md }}><Skeleton width={96} height={12} /><Skeleton width={54} height={18} radius={8} /></View></View>
+                <Skeleton width={20} height={20} radius={10} style={{ marginLeft: theme.spacing.md }} />
+              </View>)}
             </View>
           ) : loadError ? (
             <View style={styles.emptyState}>

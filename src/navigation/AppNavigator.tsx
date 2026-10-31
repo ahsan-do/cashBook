@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -100,9 +100,31 @@ const MainStack = () => (
 
 export const AppNavigator = () => {
   const { session, isEmailVerified, authInitializing, authLinkMessage } = useAuth();
+  const { theme } = useTheme();
+  const [startupVisible, setStartupVisible] = useState(false);
+  const startupShownAt = useRef<number | null>(null);
 
-  if (authInitializing) {
-    return <LoadingScreen />;
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    if (authInitializing && !startupVisible) {
+      timer = setTimeout(() => {
+        startupShownAt.current = Date.now();
+        setStartupVisible(true);
+      }, 120);
+    } else if (!authInitializing && startupVisible) {
+      const elapsed = startupShownAt.current === null ? 400 : Date.now() - startupShownAt.current;
+      timer = setTimeout(() => {
+        startupShownAt.current = null;
+        setStartupVisible(false);
+      }, Math.max(0, 400 - elapsed));
+    }
+    return () => { if (timer) clearTimeout(timer); };
+  }, [authInitializing, startupVisible]);
+
+  if (authInitializing || startupVisible) {
+    return startupVisible
+      ? <LoadingScreen />
+      : <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
   }
 
   return (

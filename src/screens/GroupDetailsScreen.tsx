@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -14,6 +14,7 @@ import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
+import { Skeleton } from '../components/Skeleton';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
@@ -134,7 +135,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
     <View style={styles.summary}>
       <Text style={styles.summaryLabel}>Net balance</Text>
-      {totals ? <BalanceAmount amount={totals.netBalance} currencyCode={currency} /> : <ActivityIndicator color={theme.colors.primary} />}
+      {totals ? <BalanceAmount amount={totals.netBalance} currencyCode={currency} /> : error ? <Text style={styles.stateText}>—</Text> : <Skeleton width={190} height={46} style={{ marginTop: theme.spacing.sm }} />}
       <View style={styles.summaryFlows}>
         <Text style={[styles.flowValue, { color: theme.colors.success }]}>In {totals ? formatMoney(totals.cashInTotal, currency) : '—'}</Text>
         <View style={styles.flowDivider} />
@@ -143,7 +144,10 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
 
-    {loading && transactions.length === 0 ? <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.stateText}>Loading entries…</Text></View>
+    {loading && transactions.length === 0 ? <View style={styles.loadingList}>
+      <Skeleton width={86} height={15} style={{ marginBottom: theme.spacing.sm }} />
+      {[0, 1, 2, 3, 4].map((row) => <View key={row} style={styles.entry}><Skeleton width={40} height={40} radius={20} /><View style={styles.entryBody}><Skeleton width="78%" height={15} /><Skeleton width="56%" height={11} style={{ marginTop: theme.spacing.sm }} /></View><View style={styles.entryAmounts}><Skeleton width={80} height={14} /><Skeleton width={70} height={11} style={{ marginTop: theme.spacing.sm }} /></View></View>)}
+    </View>
       : error && transactions.length === 0 ? <View style={styles.state}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retry} onPress={() => { setLoading(true); void loadFirstPage(); }}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View>
         : <SectionList
           sections={sections}
@@ -160,7 +164,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
           onEndReached={() => void loadMore()}
           onEndReachedThreshold={0.35}
           ListEmptyComponent={<View style={styles.empty}><Ionicons name="receipt-outline" size={34} color={theme.colors.textTertiary} /><Text style={styles.emptyTitle}>No entries yet</Text><Text style={styles.emptyCopy}>Add your first cash-in or cash-out entry.</Text></View>}
-          ListFooterComponent={loadingMore ? <ActivityIndicator style={{ padding: theme.spacing.lg }} color={theme.colors.primary} /> : null}
+          ListFooterComponent={loadingMore ? <View style={styles.loadingFooter}>{[0, 1].map((row) => <View key={row} style={styles.entry}><Skeleton width={40} height={40} radius={20} /><View style={styles.entryBody}><Skeleton width="78%" height={15} /><Skeleton width="56%" height={11} style={{ marginTop: theme.spacing.sm }} /></View><View style={styles.entryAmounts}><Skeleton width={80} height={14} /><Skeleton width={70} height={11} style={{ marginTop: theme.spacing.sm }} /></View></View>)}</View> : null}
         />}
 
     {!loading && <TouchableOpacity style={styles.fab} onPress={() => { setEditing(undefined); setQuickAddVisible(true); }} accessibilityRole="button" accessibilityLabel="Add a transaction"><Ionicons name="add" size={28} color={theme.colors.onPrimary} /></TouchableOpacity>}
@@ -180,6 +184,8 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   flowDivider: { width: 1, height: 16, backgroundColor: theme.colors.border },
   errorText: { color: theme.colors.error, fontSize: theme.typeSize.small, marginTop: theme.spacing.sm },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md, padding: theme.spacing.xl },
+  loadingList: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
+  loadingFooter: { paddingTop: theme.spacing.sm },
   stateText: { color: theme.colors.textSecondary },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: theme.spacing.lg },
   retryText: { color: theme.colors.primaryVariant, fontWeight: '700' },

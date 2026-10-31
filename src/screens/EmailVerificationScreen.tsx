@@ -1,12 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AppState,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +38,9 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   const [isResending, setIsResending] = useState(false);
   const [cooldownSeconds, setCooldownSeconds] = useState(0);
   const [showLinkError, setShowLinkError] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -63,71 +68,79 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
   }, []);
 
   const handleCheckVerification = async () => {
+    setActionError('');
+    setStatusMessage('');
     setIsVerifying(true);
     try {
       await reloadUser();
       const verified = await checkEmailVerification();
       if (verified || isEmailVerified) {
-        Alert.alert('Email Verified', 'Your email is confirmed. You can now use Cashbook.');
+        setStatusMessage('Your email is confirmed. You can now use Cashbook.');
       } else {
-        Alert.alert(
-          'Not Verified Yet',
-          'Open the confirmation link from your email, then return here and check again.'
-        );
+        setStatusMessage('Open the confirmation link from your email, then return here and check again.');
       }
     } catch (error: any) {
-      Alert.alert('Could Not Check Email', error?.message || 'Please try again.');
+      setActionError(error?.message || 'Could not check your email. Please try again.');
     } finally {
       setIsVerifying(false);
     }
   };
 
   const handleResendEmail = async () => {
+    setActionError('');
+    setStatusMessage('');
     setIsResending(true);
     try {
       await resendVerificationEmail(email);
       setCooldownSeconds(30);
       setShowLinkError(false);
-      Alert.alert('Email Sent', 'A new confirmation email has been sent.');
+      setStatusMessage('A new confirmation email has been sent.');
     } catch (error: any) {
-      Alert.alert('Could Not Send Email', error?.message || 'Please try again.');
+      setActionError(error?.message || 'Could not send the email. Please try again.');
     } finally {
       setIsResending(false);
     }
   };
 
   const handleBackToLogin = async () => {
+    setActionError('');
+    setIsLoggingOut(true);
     try {
       clearAuthLinkMessage();
       await logout();
     } catch (error: any) {
-      Alert.alert('Could Not Log Out', error?.message || 'Please try again.');
+      setActionError(error?.message || 'Could not log out. Please try again.');
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboard}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
       <View style={styles.content}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="mail-outline" size={80} color={theme.colors.primaryVariant} />
-        </View>
+        <View style={styles.brandMark}><Ionicons name="mail-outline" size={26} color={theme.colors.onPrimary} /></View>
 
-        <Text style={styles.title}>{session ? 'Verify Your Email' : 'Check Your Email'}</Text>
-        <Text style={styles.subtitle}>We've sent a verification email to:</Text>
+        <Text style={styles.title}>Check your email</Text>
+        <Text style={styles.subtitle}>One quick step to get your cash book ready.</Text>
         <Text style={styles.email}>{email || 'your email address'}</Text>
 
         <Text style={styles.description}>
           {showLinkError && authLinkMessage
             ? authLinkMessage
-            : 'Please check your inbox and click the verification link to activate your account.'}
+            : 'Open the confirmation link in your inbox, then return to Cashbook.'}
         </Text>
+        {!!statusMessage && <Text style={styles.statusMessage} accessibilityRole="alert">{statusMessage}</Text>}
+        {!!actionError && <Text style={styles.actionError} accessibilityRole="alert">{actionError}</Text>}
 
         <View style={styles.buttonContainer}>
           {session && (
             <TouchableOpacity
               style={[styles.button, styles.primaryButton]}
               onPress={handleCheckVerification}
-              disabled={isVerifying}
+              disabled={isVerifying || isResending || isLoggingOut}
+              accessibilityRole="button"
             >
               {isVerifying ? (
                 <ActivityIndicator color={theme.colors.onPrimary} size="small" />
@@ -138,31 +151,29 @@ export const EmailVerificationScreen: React.FC<EmailVerificationScreenProps> = (
           )}
 
           <TouchableOpacity
-            style={[styles.button, styles.secondaryButton]}
+            style={[styles.button, session ? styles.secondaryButton : styles.primaryButton]}
             onPress={handleResendEmail}
-            disabled={isResending || cooldownSeconds > 0}
+            disabled={isResending || isVerifying || isLoggingOut || cooldownSeconds > 0}
+            accessibilityRole="button"
+            accessibilityLabel={cooldownSeconds > 0 ? `Resend email available in ${cooldownSeconds} seconds` : 'Resend confirmation email'}
           >
             {isResending ? (
-              <ActivityIndicator color={theme.colors.primary} size="small" />
+              <ActivityIndicator color={session ? theme.colors.primaryVariant : theme.colors.onPrimary} size="small" />
             ) : (
-              <Text style={[styles.buttonText, styles.secondaryButtonText]}>
+              <Text style={[styles.buttonText, session ? styles.secondaryButtonText : styles.buttonTextPrimary]}>
                 {cooldownSeconds > 0 ? `Resend Email (${cooldownSeconds}s)` : 'Resend Email'}
               </Text>
             )}
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.button, styles.backButton]} onPress={handleBackToLogin}>
-            <Text style={[styles.buttonText, styles.backButtonText]}>Back to Login</Text>
+          <TouchableOpacity style={[styles.button, styles.backButton]} onPress={() => void handleBackToLogin()} disabled={isLoggingOut || isResending || isVerifying} accessibilityRole="button" accessibilityLabel="Back to login">
+            {isLoggingOut ? <ActivityIndicator color={theme.colors.textSecondary} /> : <Text style={[styles.buttonText, styles.backButtonText]}>Back to login</Text>}
           </TouchableOpacity>
         </View>
 
-        <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>Tips:</Text>
-          <Text style={styles.tip}>• Check your spam/junk folder</Text>
-          <Text style={styles.tip}>• Make sure you entered the correct email</Text>
-          <Text style={styles.tip}>• Wait a few minutes for the email to arrive</Text>
-        </View>
       </View>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
@@ -172,53 +183,49 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xxxl,
-  },
-  iconContainer: {
-    marginBottom: theme.spacing.xxxl,
-  },
+  keyboard: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.xxxl },
+  content: { width: '100%', maxWidth: 440, alignSelf: 'center' },
+  brandMark: { width: 54, height: 54, borderRadius: theme.radius.lg, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.xl },
   title: {
-    fontSize: theme.typeSize.title,
-    fontWeight: 'bold',
+    fontSize: theme.typeSize.display,
+    lineHeight: 40,
+    fontWeight: '800',
+    letterSpacing: -0.8,
     color: theme.colors.text,
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
   },
   subtitle: {
     fontSize: theme.typeSize.body,
     color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xl,
   },
   email: {
-    fontSize: theme.typeSize.subtitle,
-    fontWeight: '600',
-    color: theme.colors.primaryVariant,
-    marginBottom: theme.spacing.xxl,
-    textAlign: 'center',
+    fontSize: theme.typeSize.title,
+    lineHeight: 30,
+    fontWeight: '700',
+    color: theme.colors.text,
+    marginBottom: theme.spacing.lg,
   },
   description: {
     fontSize: theme.typeSize.body,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: theme.spacing.huge,
+    lineHeight: 23,
+    marginBottom: theme.spacing.lg,
   },
+  statusMessage: { color: theme.colors.success, fontSize: theme.typeSize.small, lineHeight: 20, marginBottom: theme.spacing.md },
+  actionError: { color: theme.colors.error, fontSize: theme.typeSize.small, lineHeight: 20, marginBottom: theme.spacing.md },
   buttonContainer: {
     width: '100%',
     gap: theme.spacing.lg,
   },
   button: {
-    paddingVertical: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.xxl,
     borderRadius: theme.radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 56,
+    minHeight: 52,
   },
   primaryButton: {
     backgroundColor: theme.colors.primary,
@@ -236,27 +243,11 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
     fontWeight: '600',
     color: theme.colors.onPrimary,
   },
+  buttonTextPrimary: { color: theme.colors.onPrimary },
   secondaryButtonText: {
     color: theme.colors.primaryVariant,
   },
   backButtonText: {
     color: theme.colors.textSecondary,
-  },
-  tipsContainer: {
-    marginTop: theme.spacing.huge,
-    paddingHorizontal: theme.spacing.xl,
-  },
-  tipsTitle: {
-    fontSize: theme.typeSize.body,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  tip: {
-    fontSize: theme.typeSize.small,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
   },
 });

@@ -1,22 +1,14 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 
-interface SignUpScreenProps {
-  navigation: any;
-}
+interface SignUpScreenProps { navigation: any; }
+type Field = 'name' | 'email' | 'password' | 'confirmPassword';
 
 export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [displayName, setDisplayName] = useState('');
@@ -24,6 +16,13 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [focused, setFocused] = useState<Field | null>(null);
+  const [visiblePasswords, setVisiblePasswords] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
+  const [formError, setFormError] = useState('');
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
   const { signUp } = useAuth();
   const { theme } = useTheme();
   const styles = makeStyles(theme);
@@ -31,159 +30,79 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const handleSignUp = async () => {
     const normalizedName = displayName.trim();
     const normalizedEmail = email.trim().toLowerCase();
-
-    if (!normalizedName) {
-      Alert.alert('Error', 'Please enter your name.');
-      return;
-    }
-
-    if (!normalizedEmail || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please enter your email and complete both password fields.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
-      return;
-    }
+    const errors: Partial<Record<Field, string>> = {};
+    if (!normalizedName) errors.name = 'Enter your name.';
+    if (!normalizedEmail) errors.email = 'Enter your email address.';
+    if (!password) errors.password = 'Create a password.';
+    else if (password.length < 6) errors.password = 'Use at least 6 characters.';
+    if (!confirmPassword) errors.confirmPassword = 'Confirm your password.';
+    else if (password !== confirmPassword) errors.confirmPassword = 'Passwords do not match.';
+    setFieldErrors(errors);
+    setFormError('');
+    if (Object.keys(errors).length) return;
 
     setLoading(true);
     try {
       const hasSession = await signUp(normalizedEmail, password, normalizedName);
-      if (!hasSession) {
-        navigation.navigate('EmailVerification', { email: normalizedEmail });
-      }
+      if (!hasSession) navigation.navigate('EmailVerification', { email: normalizedEmail });
     } catch (error: any) {
-      Alert.alert('Could Not Create Account', error?.message || 'Please try again.');
+      setFormError(error?.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const fieldStyle = (field: Field) => [styles.input, {
+    backgroundColor: theme.colors.surface,
+    borderColor: fieldErrors[field] ? theme.colors.error : focused === field ? theme.colors.primaryVariant : theme.colors.border,
+    color: theme.colors.text,
+  }];
+
+  const clearError = (field: Field) => setFieldErrors((current) => ({ ...current, [field]: undefined }));
+  const renderPasswordToggle = (label: string) => <TouchableOpacity style={styles.visibilityButton} onPress={() => setVisiblePasswords((value) => !value)} disabled={loading} accessibilityRole="button" accessibilityLabel={`${visiblePasswords ? 'Hide' : 'Show'} ${label}`}><Ionicons name={visiblePasswords ? 'eye-off-outline' : 'eye-outline'} size={21} color={theme.colors.textSecondary} /></TouchableOpacity>;
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardContainer}
-      >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+    <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboard}>
+        <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           <View style={styles.content}>
-            <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.text }]}>Create Account</Text>
-              <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                Sign up to start managing your expenses
-              </Text>
-            </View>
+            <View style={styles.brandMark}><Ionicons name="wallet-outline" size={26} color={theme.colors.onPrimary} /></View>
+            <Text style={styles.title}>Create your account</Text>
+            <Text style={styles.subtitle}>A clearer view of your cash starts here.</Text>
 
             <View style={styles.form}>
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: theme.colors.text }]}>Full Name</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                    },
-                  ]}
-                  placeholder="Enter your full name"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  autoCapitalize="words"
-                  autoCorrect={false}
-                />
+              <View>
+                <Text style={styles.label}>Name</Text>
+                <TextInput style={fieldStyle('name')} value={displayName} onChangeText={(value) => { setDisplayName(value); clearError('name'); }} placeholder="Your name" placeholderTextColor={theme.colors.textTertiary} autoCapitalize="words" autoCorrect={false} textContentType="name" autoComplete="name" returnKeyType="next" onFocus={() => setFocused('name')} onBlur={() => setFocused(null)} onSubmitEditing={() => emailRef.current?.focus()} editable={!loading} accessibilityLabel="Name" />
+                {!!fieldErrors.name && <Text style={styles.fieldError}>{fieldErrors.name}</Text>}
+              </View>
+              <View>
+                <Text style={styles.label}>Email</Text>
+                <TextInput ref={emailRef} style={fieldStyle('email')} value={email} onChangeText={(value) => { setEmail(value); clearError('email'); }} placeholder="you@example.com" placeholderTextColor={theme.colors.textTertiary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" autoComplete="email" returnKeyType="next" onFocus={() => setFocused('email')} onBlur={() => setFocused(null)} onSubmitEditing={() => passwordRef.current?.focus()} editable={!loading} accessibilityLabel="Email address" />
+                {!!fieldErrors.email && <Text style={styles.fieldError}>{fieldErrors.email}</Text>}
+              </View>
+              <View>
+                <Text style={styles.label}>Password</Text>
+                <View style={[styles.passwordWrap, { backgroundColor: theme.colors.surface, borderColor: fieldErrors.password ? theme.colors.error : focused === 'password' ? theme.colors.primaryVariant : theme.colors.border }]}>
+                  <TextInput ref={passwordRef} style={[styles.passwordInput, { color: theme.colors.text }]} value={password} onChangeText={(value) => { setPassword(value); clearError('password'); }} placeholder="At least 6 characters" placeholderTextColor={theme.colors.textTertiary} secureTextEntry={!visiblePasswords} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="next" onFocus={() => setFocused('password')} onBlur={() => setFocused(null)} onSubmitEditing={() => confirmPasswordRef.current?.focus()} editable={!loading} accessibilityLabel="Password" />
+                  {renderPasswordToggle('password')}
+                </View>
+                {!!fieldErrors.password && <Text style={styles.fieldError}>{fieldErrors.password}</Text>}
+              </View>
+              <View>
+                <Text style={styles.label}>Confirm password</Text>
+                <View style={[styles.passwordWrap, { backgroundColor: theme.colors.surface, borderColor: fieldErrors.confirmPassword ? theme.colors.error : focused === 'confirmPassword' ? theme.colors.primaryVariant : theme.colors.border }]}>
+                  <TextInput ref={confirmPasswordRef} style={[styles.passwordInput, { color: theme.colors.text }]} value={confirmPassword} onChangeText={(value) => { setConfirmPassword(value); clearError('confirmPassword'); }} placeholder="Enter it once more" placeholderTextColor={theme.colors.textTertiary} secureTextEntry={!visiblePasswords} autoCapitalize="none" autoCorrect={false} textContentType="newPassword" autoComplete="new-password" returnKeyType="done" onFocus={() => setFocused('confirmPassword')} onBlur={() => setFocused(null)} onSubmitEditing={() => void handleSignUp()} editable={!loading} accessibilityLabel="Confirm password" />
+                  {renderPasswordToggle('password')}
+                </View>
+                {!!fieldErrors.confirmPassword && <Text style={styles.fieldError}>{fieldErrors.confirmPassword}</Text>}
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: theme.colors.text }]}>Email</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                    },
-                  ]}
-                  placeholder="Enter your email"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: theme.colors.text }]}>Password</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                    },
-                  ]}
-                  placeholder="Enter your password"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={[styles.label, { color: theme.colors.text }]}>Confirm Password</Text>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor: theme.colors.border,
-                      color: theme.colors.text,
-                    },
-                  ]}
-                  placeholder="Confirm your password"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.button,
-                  {
-                    backgroundColor: theme.colors.primary,
-                    opacity: loading ? 0.6 : 1,
-                  },
-                ]}
-                onPress={handleSignUp}
-                disabled={loading}
-              >
-                <Text style={[styles.buttonText, { color: theme.colors.onPrimary }]}>
-                  {loading ? 'Creating Account...' : 'Create Account'}
-                </Text>
+              {!!formError && <Text style={styles.formError} accessibilityRole="alert">{formError}</Text>}
+              <TouchableOpacity style={[styles.primaryButton, { opacity: loading ? 0.8 : 1 }]} onPress={() => void handleSignUp()} disabled={loading} accessibilityRole="button" accessibilityLabel="Create account">
+                {loading ? <ActivityIndicator color={theme.colors.onPrimary} /> : <Text style={styles.primaryButtonText}>Create account</Text>}
               </TouchableOpacity>
-
-              <View style={styles.footer}>
-                <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Already have an account? </Text>
-                <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                  <Text style={[styles.linkText, { color: theme.colors.primaryVariant }]}>Sign In</Text>
-                </TouchableOpacity>
-              </View>
+              <View style={styles.footer}><Text style={styles.footerText}>Already have an account? </Text><TouchableOpacity style={styles.textButton} onPress={() => navigation.navigate('Login')} accessibilityRole="button"><Text style={styles.link}>Sign in</Text></TouchableOpacity></View>
             </View>
           </View>
         </ScrollView>
@@ -193,70 +112,25 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
 };
 
 const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: theme.spacing.xxl,
-  },
-  content: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  header: {
-    marginBottom: theme.spacing.xxxl,
-  },
-  title: {
-    fontSize: theme.typeSize.display,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: theme.spacing.sm,
-  },
-  subtitle: {
-    textAlign: 'center',
-  },
-  form: {
-    gap: theme.spacing.lg,
-  },
-  inputContainer: {
-    marginBottom: theme.spacing.lg,
-  },
-  label: {
-    marginBottom: theme.spacing.sm,
-    fontWeight: '500',
-  },
-  input: {
-    borderWidth: 1,
-    minHeight: 48,
-    borderRadius: theme.radius.sm,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-  },
-  button: {
-    minHeight: 52,
-    justifyContent: 'center',
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radius.sm,
-    marginTop: theme.spacing.xxl,
-  },
-  buttonText: {
-    textAlign: 'center',
-    fontWeight: '600',
-    fontSize: theme.typeSize.subtitle,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: theme.spacing.xxl,
-  },
-  footerText: {
-    // Color will be applied via theme
-  },
-  linkText: {
-    fontWeight: '600',
-  },
-  keyboardContainer: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: theme.colors.background },
+  keyboard: { flex: 1 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: theme.spacing.xl, paddingVertical: theme.spacing.xxxl },
+  content: { width: '100%', maxWidth: 440, alignSelf: 'center' },
+  brandMark: { width: 54, height: 54, borderRadius: theme.radius.lg, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.xl },
+  title: { color: theme.colors.text, fontSize: theme.typeSize.display, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
+  subtitle: { color: theme.colors.textSecondary, fontSize: theme.typeSize.body, marginTop: theme.spacing.sm, marginBottom: theme.spacing.xxl },
+  form: { gap: theme.spacing.lg },
+  label: { color: theme.colors.text, fontSize: theme.typeSize.small, fontWeight: '700', marginBottom: theme.spacing.sm },
+  input: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.lg, fontSize: theme.typeSize.body },
+  passwordWrap: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, flexDirection: 'row', alignItems: 'center' },
+  passwordInput: { flex: 1, minHeight: 50, paddingHorizontal: theme.spacing.lg, fontSize: theme.typeSize.body },
+  visibilityButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  fieldError: { color: theme.colors.error, fontSize: theme.typeSize.caption, marginTop: theme.spacing.xs },
+  formError: { color: theme.colors.error, fontSize: theme.typeSize.small, lineHeight: 20 },
+  primaryButton: { minHeight: 56, borderRadius: theme.radius.md, marginTop: theme.spacing.sm, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' },
+  primaryButtonText: { color: theme.colors.onPrimary, fontSize: theme.typeSize.body, fontWeight: '800' },
+  footer: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: theme.spacing.md },
+  footerText: { color: theme.colors.textSecondary, fontSize: theme.typeSize.small },
+  textButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: theme.spacing.xs },
+  link: { color: theme.colors.primaryVariant, fontWeight: '700', fontSize: theme.typeSize.small },
 });

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -22,6 +21,7 @@ import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
+import { Skeleton } from '../components/Skeleton';
 
 interface HomeScreenProps { navigation: any; }
 type BookOverview = { book: Book; cashIn: number; cashOut: number; balance: number; recent: Transaction[] };
@@ -90,7 +90,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           </TouchableOpacity>}
         </View>
 
-        {loading ? <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /><Text style={styles.stateText}>Loading your books…</Text></View>
+        {loading ? <View style={styles.bookList}>{[0, 1].map((bookIndex) => <View key={bookIndex} style={styles.bookCard}>
+          <Skeleton width="54%" height={20} />
+          <View style={{ marginTop: theme.spacing.lg }}><Skeleton width={92} height={12} /><Skeleton width="58%" height={36} style={{ marginTop: theme.spacing.sm }} /><Skeleton width="72%" height={13} style={{ marginTop: theme.spacing.sm }} /></View>
+          <View style={styles.recentBlock}><Skeleton width={70} height={11} style={{ marginBottom: theme.spacing.sm }} />
+            {[0, 1, 2].map((row) => <View key={row} style={styles.recentRow}><Skeleton width={34} height={34} radius={17} /><View style={styles.recentCopy}><Skeleton width="72%" height={13} /><Skeleton width={64} height={10} style={{ marginTop: theme.spacing.xs }} /></View><Skeleton width={78} height={14} /></View>)}
+          </View>
+        </View>)}</View>
           : error ? <View style={styles.state}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retryButton} onPress={() => { setLoading(true); void loadHome(); }}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View>
             : overviews.length === 0 ? <View style={styles.emptyState}>
               <View style={styles.emptyIcon}><Ionicons name="wallet-outline" size={34} color={theme.colors.primaryVariant} /></View>
