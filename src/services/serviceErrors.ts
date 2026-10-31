@@ -15,6 +15,18 @@ const friendlyMessages: Record<string, string> = {
 /** Convert Supabase/Postgres failures into messages suitable for the UI. */
 export const toServiceError = (error: unknown, operation: string): Error => {
   const databaseError = (error ?? {}) as DatabaseError;
+  if (databaseError.code === '23514' && databaseError.message) {
+    const serverMessage = databaseError.message;
+    if (/non-zero balance|balance.*settle/i.test(serverMessage)) {
+      return new Error(serverMessage);
+    }
+    if (/exceeds your outstanding balance|overpay/i.test(serverMessage)) {
+      return new Error('That amount is more than you currently owe. Enter a smaller settlement amount.');
+    }
+    if (/do not currently owe/i.test(serverMessage)) {
+      return new Error('You do not owe a settlement amount right now.');
+    }
+  }
   const message = databaseError.code
     ? friendlyMessages[databaseError.code]
     : undefined;

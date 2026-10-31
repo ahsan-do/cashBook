@@ -116,7 +116,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <Text style={styles.recentHeading}>Recent</Text>
                     {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${transaction.title} in ${book.name}`}>
                       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category)} size={16} color={theme.colors.textSecondary} /></View>
-                      <View style={styles.recentCopy}><Text style={styles.recentTitle} numberOfLines={1}>{transaction.description?.trim() || transaction.category}</Text><Text style={styles.recentDate}>{formatEntryDate(transaction.entryDate)}</Text></View>
+                      <View style={styles.recentCopy}>
+                        <Text style={styles.recentTitle} numberOfLines={1}>{transaction.description?.trim() || transaction.category}</Text>
+                        <Text style={styles.recentDate}>{formatEntryDate(transaction.entryDate)} · Added by {transaction.createdByName || 'Member'}</Text>
+                        {transaction.paidBy && transaction.paidBy !== transaction.createdBy && <Text style={styles.recentDate}>Paid by {transaction.paidByName || 'Former member'}</Text>}
+                        {transaction.paidBy && transaction.participants.length > 0 && <Text style={styles.recentSplit}>Split {transaction.participants.length} ways</Text>}
+                      </View>
                       <View style={styles.recentValue}><Ionicons name={transaction.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={14} color={transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.recentAmount, { color: transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{transaction.type === 'cash_in' ? '+' : '−'}{formatMoney(transaction.amount, book.currencyCode)}</Text></View>
                     </TouchableOpacity>)}
                   </View>}
@@ -167,6 +172,7 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   recentCopy: { flex: 1 },
   recentTitle: { color: theme.colors.text, fontSize: theme.typeSize.small, fontWeight: '600' },
   recentDate: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, marginTop: 2 },
+  recentSplit: { color: theme.colors.primaryVariant, fontSize: theme.typeSize.caption, fontWeight: '700', marginTop: 2 },
   recentValue: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xxs },
   recentAmount: { fontSize: theme.typeSize.caption, fontWeight: '700' },
   seeAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, minHeight: 48, marginTop: theme.spacing.sm },

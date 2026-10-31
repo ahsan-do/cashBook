@@ -113,6 +113,9 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       <View style={styles.entryBody}>
         <Text style={styles.entryTitle} numberOfLines={1}>{rowTitle}</Text>
         <Text style={styles.entryMeta}>{new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}{showCategoryInSubtitle ? ` · ${item.category}` : ''}</Text>
+        <Text style={styles.entryAttribution}>Added by {item.createdByName || 'Member'}</Text>
+        {item.paidBy && item.paidBy !== item.createdBy && <Text style={styles.entryAttribution}>Paid by {item.paidByName || 'Former member'}</Text>}
+        {item.paidBy && item.participants.length > 0 && <Text style={styles.splitIndicator}>Split {item.participants.length} ways</Text>}
       </View>
       <View style={styles.entryAmounts}>
         <View style={styles.signedAmount}><Ionicons name={item.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={15} color={item.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.entryAmount, { color: item.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{item.type === 'cash_in' ? '+' : '−'}{formatMoney(item.amount, currency)}</Text></View>
@@ -199,6 +202,8 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   entryBody: { flex: 1 },
   entryTitle: { fontSize: theme.typeSize.body, fontWeight: '600', color: theme.colors.text },
   entryMeta: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xs },
+  entryAttribution: { fontSize: theme.typeSize.caption, color: theme.colors.textTertiary, marginTop: theme.spacing.xxs },
+  splitIndicator: { alignSelf: 'flex-start', color: theme.colors.primaryVariant, fontSize: theme.typeSize.caption, fontWeight: '700', marginTop: theme.spacing.xxs },
   entryAmounts: { alignItems: 'flex-end' },
   signedAmount: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xxs },
   entryAmount: { fontSize: theme.typeSize.small, fontWeight: '700' },

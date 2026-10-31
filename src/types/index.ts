@@ -42,6 +42,35 @@ export interface Transaction {
   /** Supplied by book_transaction_page, calculated across all active rows. */
   /** null for a newly inserted row until book_transaction_page returns it. */
   runningBalance: number | null;
+  createdByName: string | null;
+  paidBy: string | null;
+  paidByName: string | null;
+  participants: TransactionParticipant[];
+}
+
+export interface TransactionParticipant {
+  userId: string;
+  displayName: string | null;
+}
+
+export interface Settlement {
+  id: string;
+  bookId: string;
+  fromUser: string;
+  toUser: string;
+  amount: number;
+  entryDate: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface MemberBalance {
+  userId: string;
+  displayName: string;
+  paidTotal: number;
+  shareTotal: number;
+  settledNet: number;
+  balance: number;
 }
 
 export interface Invitation {

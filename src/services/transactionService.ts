@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Transaction, TransactionType } from '../types';
+import { Transaction, TransactionParticipant, TransactionType } from '../types';
 import { parseMoneyAmount } from './money';
 import { throwServiceError } from './serviceErrors';
 
@@ -36,6 +36,17 @@ export interface AddTransactionInput {
   description?: string | null;
 }
 
+export interface SharedTransactionInput extends Omit<AddTransactionInput, 'type' | 'entryDate'> {
+  type: 'cash_out';
+  entryDate: string;
+  paidBy: string;
+  participants: string[];
+}
+
+export interface EditSharedTransactionInput extends Omit<SharedTransactionInput, 'bookId' | 'type'> {
+  bookId: string;
+}
+
 export type EditableTransactionFields = Partial<
   Pick<Transaction, 'title' | 'type' | 'category' | 'description' | 'entryDate'> & {
     amount: MoneyInput;
@@ -55,6 +66,10 @@ interface TransactionRow {
   updated_at: string;
   entry_date: string;
   running_balance: number | string | null;
+  created_by_name?: string | null;
+  paid_by?: string | null;
+  paid_by_name?: string | null;
+  participants?: Array<{ user_id: string; display_name: string | null }> | null;
 }
 
 const transactionColumns = 'id,book_id,title,amount,type,category,description,created_by,created_at,updated_at,entry_date';
@@ -72,6 +87,13 @@ const mapTransaction = (row: TransactionRow): Transaction => ({
   updatedAt: row.updated_at,
   entryDate: row.entry_date,
   runningBalance: row.running_balance === null ? null : parseMoneyAmount(row.running_balance),
+  createdByName: row.created_by_name ?? null,
+  paidBy: row.paid_by ?? null,
+  paidByName: row.paid_by_name ?? null,
+  participants: (row.participants ?? []).map((participant): TransactionParticipant => ({
+    userId: participant.user_id,
+    displayName: participant.display_name,
+  })),
 });
 
 const requireValidDate = (date: string, label: string) => {
@@ -183,6 +205,66 @@ export const transactionService = {
       return mapTransaction({ ...row, running_balance: null });
     } catch (error) {
       return throwServiceError(error, 'Could not add transaction');
+    }
+  },
+
+  async addSharedTransaction(input: SharedTransactionInput): Promise<string> {
+    if (input.type !== 'cash_out') throw new Error('Only cash-out entries can be shared.');
+    const title = input.title.trim();
+    const category = input.category?.trim() || 'General';
+    const description = input.description?.trim() || null;
+    validateTextFields({ title, category, description });
+    requireValidDate(input.entryDate, 'Entry date');
+    if (!input.paidBy) throw new Error('Choose who paid for this expense.');
+    if (!input.participants.length) throw new Error('Choose at least one participant.');
+    const amount = amountForDatabase(input.amount);
+    try {
+      const { data, error } = await supabase.rpc('add_shared_transaction', {
+        p_book_id: input.bookId,
+        p_title: title,
+        p_amount: amount,
+        p_category: category,
+        p_description: description,
+        p_entry_date: input.entryDate,
+        p_paid_by: input.paidBy,
+        p_participants: input.participants,
+      });
+      if (error) throw error;
+      if (typeof data !== 'string') throw new Error('The shared expense was saved without a transaction reference.');
+      return data;
+    } catch (error) {
+      return throwServiceError(error, 'Could not add shared expense');
+    }
+  },
+
+  async editSharedTransaction(transaction: Transaction, updates: EditSharedTransactionInput): Promise<void> {
+    const title = updates.title.trim();
+    const category = updates.category?.trim() || 'General';
+    const description = updates.description?.trim() || null;
+    validateTextFields({ title, category, description });
+    requireValidDate(updates.entryDate, 'Entry date');
+    if (!updates.paidBy) throw new Error('Choose who paid for this expense.');
+    if (!updates.participants.length) throw new Error('Choose at least one participant.');
+    const amount = amountForDatabase(updates.amount);
+    try {
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) throw authError;
+      if (!authData.user) throw new Error('Sign in before editing a shared expense.');
+      if (authData.user.id !== transaction.createdBy) throw new Error('Only the person who added this expense can edit it.');
+      const { error } = await supabase.rpc('edit_shared_transaction', {
+        p_transaction_id: transaction.id,
+        p_book_id: updates.bookId,
+        p_title: title,
+        p_amount: amount,
+        p_category: category,
+        p_description: description,
+        p_entry_date: updates.entryDate,
+        p_paid_by: updates.paidBy,
+        p_participants: updates.participants,
+      });
+      if (error) throw error;
+    } catch (error) {
+      return throwServiceError(error, 'Could not update shared expense');
     }
   },
 
