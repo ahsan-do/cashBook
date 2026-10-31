@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(66);
+select plan(71);
 
 create temporary table test_ids (
   book_id uuid,
@@ -166,17 +166,12 @@ select extensions.throws_ok(
   $$select count(*) from public.transactions where book_id = (select book_id from test_ids)$$,
   '42501', null, 'unverified email cannot read book transactions'
 );
-\set ON_ERROR_STOP off
-savepoint unverified_insert_attempt;
-insert into public.transactions (book_id, title, amount, type, created_by)
-  values ((select book_id from test_ids), 'Unverified write', 1.00, 'cash_out', auth.uid());
-\if :ERROR
-  rollback to savepoint unverified_insert_attempt;
-\else
-  release savepoint unverified_insert_attempt;
-\endif
+select extensions.throws_ok(
+  $$insert into public.transactions (book_id, title, amount, type, created_by)
+    values ((select book_id from test_ids), 'Unverified write', 1.00, 'cash_out', auth.uid())$$,
+  '42501', null, 'unverified user transaction insert is denied'
+);
 reset role;
-\set ON_ERROR_STOP on
 select extensions.ok(
   not exists (select 1 from public.transactions where title = 'Unverified write'),
   'unverified email cannot write book transactions'
@@ -197,6 +192,7 @@ select extensions.ok(
 insert into public.book_members (book_id, user_id, role)
   values ((select book_b_id from test_ids), '10000000-0000-0000-0000-000000000002', 'member');
 set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
 select extensions.is(
   (select count(*)::integer from public.transactions where book_id = (select book_id from test_ids)),
   1,
@@ -204,37 +200,25 @@ select extensions.is(
 );
 insert into public.transactions (book_id, title, amount, type, created_by)
   values ((select book_id from test_ids), 'Market', 400.00, 'cash_out', auth.uid());
-\set ON_ERROR_STOP off
-savepoint forged_creator_insert_attempt;
-insert into public.transactions (book_id, title, amount, type, created_by)
-  values ((select book_id from test_ids), 'Forged creator', 1.00, 'cash_out', '10000000-0000-0000-0000-000000000001');
-\if :ERROR
-  rollback to savepoint forged_creator_insert_attempt;
-\else
-  release savepoint forged_creator_insert_attempt;
-\endif
+select extensions.throws_ok(
+  $$insert into public.transactions (book_id, title, amount, type, created_by)
+    values ((select book_id from test_ids), 'Forged creator', 1.00, 'cash_out', '10000000-0000-0000-0000-000000000001')$$,
+  '42501', null, 'member cannot forge created_by on a transaction insert'
+);
 reset role;
-\set ON_ERROR_STOP on
 select extensions.ok(
   not exists (select 1 from public.transactions where title = 'Forged creator'),
   'forged created_by is rejected'
 );
 set local role authenticated;
-\set ON_ERROR_STOP off
-savepoint replay_invitation_attempt;
-select public.accept_invitation((select invitation_id from test_ids));
-\if :ERROR
-  \set replay_failed true
-  rollback to savepoint replay_invitation_attempt;
-\else
-  \set replay_failed false
-  release savepoint replay_invitation_attempt;
-\endif
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000002","role":"authenticated","email":"member@example.test"}', true);
+select extensions.throws_ok(
+  $$select public.accept_invitation((select invitation_id from test_ids))$$,
+  '55000', null, 'replayed invitation acceptance is rejected'
+);
 reset role;
-\set ON_ERROR_STOP on
 select extensions.ok(
-  :replay_failed::boolean
-  and exists (select 1 from public.invitations where id = (select invitation_id from test_ids) and status = 'accepted')
+  exists (select 1 from public.invitations where id = (select invitation_id from test_ids) and status = 'accepted')
   and (select count(*) = 1 from public.book_members where book_id = (select book_id from test_ids) and user_id = '10000000-0000-0000-0000-000000000002'),
   'replayed invitation acceptance fails'
 );
@@ -247,24 +231,33 @@ select extensions.is(
   0,
   'non-member cannot read another book transactions'
 );
-\set ON_ERROR_STOP off
-savepoint non_member_insert_attempt;
-insert into public.transactions (book_id, title, amount, type, created_by)
-  values ((select book_id from test_ids), 'Unauthorized', 1.00, 'cash_out', auth.uid());
-\if :ERROR
-  rollback to savepoint non_member_insert_attempt;
-\else
-  release savepoint non_member_insert_attempt;
-\endif
+select extensions.throws_ok(
+  $$insert into public.transactions (book_id, title, amount, type, created_by)
+    values ((select book_id from test_ids), 'Unauthorized', 1.00, 'cash_out', auth.uid())$$,
+  '42501', null, 'non-member transaction insert is denied'
+);
 reset role;
-\set ON_ERROR_STOP on
 select extensions.ok(
   not exists (select 1 from public.transactions where title = 'Unauthorized'),
   'non-member cannot write another book transactions'
 );
 set local role authenticated;
-update public.transactions set title = 'Unauthorized edit'
-  where book_id = (select book_id from test_ids) and title = 'Opening funds';
+select set_config('request.jwt.claims', '{"sub":"10000000-0000-0000-0000-000000000003","role":"authenticated","email":"outsider@example.test"}', true);
+select extensions.lives_ok(
+  $query$do $block$
+    declare
+      affected_rows bigint;
+    begin
+      update public.transactions set title = 'Unauthorized edit'
+        where book_id = (select book_id from test_ids) and title = 'Opening funds';
+      get diagnostics affected_rows = row_count;
+      if affected_rows <> 0 then
+        raise exception 'Expected non-member UPDATE to affect zero rows, got %', affected_rows;
+      end if;
+    end;
+  $block$$query$,
+  'non-member UPDATE affects exactly zero rows under RLS'
+);
 reset role;
 select extensions.is(
   (select title from public.transactions where title = 'Opening funds'),
