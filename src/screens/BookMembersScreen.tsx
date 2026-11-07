@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,6 +21,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [book, setBook] = useState<Book | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -56,11 +57,11 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   const load = useCallback(async () => {
     if (!bookId) { setError('This book could not be opened.'); setLoading(false); return; }
     setError(null);
+    setBalancesLoading(true);
     try {
       const [bookInfo, memberRows] = await Promise.all([bookService.getBook(bookId), bookService.listMembers(bookId)]);
       setBook(bookInfo);
       setMembers(memberRows);
-      setBalancesLoading(true);
       const [balanceResult, settlementResult] = await Promise.allSettled([
         settlementService.getMemberBalances(bookId),
         settlementService.listSettlements(bookId),
@@ -177,7 +178,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     </View>
     {loading ? <View style={styles.state}><ActivityIndicator color={theme.colors.primary} /></View>
       : error ? <View style={styles.state}><Text style={styles.error}>{error}</Text><TouchableOpacity style={styles.retry} onPress={() => { setLoading(true); void load(); }}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View>
-        : <ScrollView contentContainerStyle={styles.content}>
+        : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
           <Text style={styles.sectionTitle}>Members <Text style={styles.sectionCount}>{members.length}</Text></Text>
           <View style={styles.card}>{members.map((member) => {
             const memberBalance = balanceByUser.get(member.userId);
@@ -212,7 +213,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
                     {suggestion.fromUser === user?.id && <TouchableOpacity style={styles.suggestionAction} onPress={() => openSettlement(suggestion)} accessibilityRole="button"><Text style={styles.suggestionActionText}>Settle</Text></TouchableOpacity>}
                   </View>)}
                 </View>}
-                <TouchableOpacity style={[styles.primaryButton, (!ownBalanceKnown || ownBalance >= 0) && styles.disabledButton]} onPress={() => openSettlement()} disabled={!ownBalanceKnown || ownBalance >= 0} accessibilityRole="button" accessibilityLabel={ownBalance < 0 ? 'Settle up' : 'Settle up, no amount owed'}>
+                <TouchableOpacity style={[styles.primaryButton, styles.settleButton, (!ownBalanceKnown || ownBalance >= 0) && styles.disabledButton]} onPress={() => openSettlement()} disabled={!ownBalanceKnown || ownBalance >= 0} accessibilityRole="button" accessibilityLabel={ownBalance < 0 ? 'Settle up' : 'Settle up, no amount owed'}>
                   <Text style={[styles.primaryText, (!ownBalanceKnown || ownBalance >= 0) && styles.disabledButtonText]}>Settle up</Text>
                 </TouchableOpacity>
                 {ownBalanceKnown && ownBalance >= 0 && <Text style={styles.muted}>You do not owe a settlement amount right now.</Text>}
@@ -234,7 +235,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
           {isOwner && <>
             <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Invitations</Text><TouchableOpacity style={styles.rowAction} onPress={() => void load()} accessibilityRole="button" accessibilityLabel="Refresh invitations"><Ionicons name="refresh" size={19} color={theme.colors.primaryVariant} /></TouchableOpacity></View>
             <View style={styles.card}>{invitations.length === 0 ? <Text style={styles.muted}>No pending invitations.</Text> : invitations.map((invitation) => <View key={invitation.id} style={styles.row}>
-              <View style={styles.memberCopy}><Text style={styles.memberName}>{invitation.invitedEmail}</Text><Text style={styles.memberRole}>Expires {formatEntryDate(invitation.expiresAt.slice(0, 10))}</Text></View>
+              <View style={styles.memberCopy}><Text style={styles.memberName}>{invitation.invitedEmail}</Text><View style={styles.invitationMeta}><Text style={styles.memberRole}>Expires {formatEntryDate(invitation.expiresAt.slice(0, 10))}</Text><View style={styles.pendingBadge}><Text style={styles.pendingText}>Pending</Text></View></View></View>
               <TouchableOpacity style={styles.rowAction} onPress={() => revokeInvitation(invitation)} disabled={actionId === invitation.id} accessibilityRole="button" accessibilityLabel={`Revoke invitation for ${invitation.invitedEmail}`}><Text style={styles.revokeText}>{actionId === invitation.id ? '…' : 'Revoke'}</Text></TouchableOpacity>
             </View>)}</View>
           </>}
@@ -244,14 +245,14 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
           </>}
         </ScrollView>}
     <Modal visible={inviteVisible} animationType="slide" transparent onRequestClose={() => setInviteVisible(false)}>
-      <View style={styles.modalOverlay}><View style={styles.modalCard}>
+      <View style={styles.modalOverlay}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
         <View style={styles.modalHeader}><Text style={styles.sectionTitle}>Invite member</Text><TouchableOpacity style={styles.rowAction} onPress={() => setInviteVisible(false)} accessibilityRole="button" accessibilityLabel="Close invite form"><Ionicons name="close" size={22} color={theme.colors.textSecondary} /></TouchableOpacity></View>
         <TextInput style={styles.input} value={inviteEmail} onChangeText={setInviteEmail} placeholder="Email address" placeholderTextColor={theme.colors.textTertiary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} accessibilityLabel="Invitation email address" />
         <TouchableOpacity style={styles.primaryButton} onPress={() => void sendInvite()} disabled={saving} accessibilityRole="button"><Text style={styles.primaryText}>{saving ? 'Sending…' : 'Send invitation'}</Text></TouchableOpacity>
       </View></View>
     </Modal>
     <Modal visible={settleVisible} animationType="slide" transparent onRequestClose={() => setSettleVisible(false)}>
-      <View style={styles.modalOverlay}><View style={styles.modalCard}>
+      <View style={styles.modalOverlay}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
         <View style={styles.modalHeader}><Text style={styles.sectionTitle}>Settle up</Text><TouchableOpacity style={styles.rowAction} onPress={() => setSettleVisible(false)} accessibilityRole="button" accessibilityLabel="Close settle up"><Ionicons name="close" size={22} color={theme.colors.textSecondary} /></TouchableOpacity></View>
         <Text style={styles.modalLabel}>Pay</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payeeOptions}>{balances.filter((balance) => balance.userId !== user?.id && balance.balance > 0).map((balance) => <TouchableOpacity key={balance.userId} style={[styles.memberChip, { borderColor: settleTo === balance.userId ? theme.colors.primary : theme.colors.border, backgroundColor: settleTo === balance.userId ? theme.colors.primary : theme.colors.surfaceVariant }]} onPress={() => setSettleTo(balance.userId)} accessibilityRole="button" accessibilityState={{ selected: settleTo === balance.userId }}><Text style={{ color: settleTo === balance.userId ? theme.colors.onPrimary : theme.colors.text }}>{balance.displayName}</Text></TouchableOpacity>)}</ScrollView>
@@ -260,7 +261,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
         <Text style={styles.modalLabel}>Date (YYYY-MM-DD)</Text>
         <TextInput style={styles.input} value={settleDate} onChangeText={setSettleDate} accessibilityLabel="Settlement date" />
         <TouchableOpacity style={[styles.primaryButton, (!settleTo || !settleAmount || settlementSaving) && styles.disabledButton]} onPress={confirmSettlement} disabled={!settleTo || !settleAmount || settlementSaving} accessibilityRole="button">
-          {settlementSaving ? <ActivityIndicator color={theme.colors.onPrimary} /> : <Text style={[styles.primaryText, (!settleTo || !settleAmount) && styles.disabledButtonText]}>Confirm payment</Text>}
+          {settlementSaving ? <ActivityIndicator color={theme.colors.textSecondary} /> : <Text style={[styles.primaryText, (!settleTo || !settleAmount) && styles.disabledButtonText]}>Confirm payment</Text>}
         </TouchableOpacity>
       </View></View>
     </Modal>
@@ -282,6 +283,9 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   memberCopy: { flex: 1 },
   memberName: { fontSize: theme.typeSize.body, color: theme.colors.text, fontWeight: '600' },
   memberRole: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xxs, textTransform: 'capitalize' },
+  invitationMeta: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flexWrap: 'wrap' },
+  pendingBadge: { minHeight: 24, borderRadius: theme.radius.pill, justifyContent: 'center', paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.surfaceVariant },
+  pendingText: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, fontWeight: '700' },
   rowAction: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   memberChip: { minHeight: 44, borderWidth: 1, borderRadius: theme.radius.pill, paddingHorizontal: theme.spacing.md, alignItems: 'center', justifyContent: 'center' },
   balanceRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.borderLight },
@@ -311,9 +315,10 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   input: { minHeight: 52, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceVariant, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, color: theme.colors.text },
   primaryButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.md, backgroundColor: theme.colors.primary },
+  settleButton: { marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
   primaryText: { color: theme.colors.onPrimary, fontWeight: '700' },
-  disabledButton: { opacity: 0.55 },
-  disabledButtonText: { color: theme.colors.textTertiary },
+  disabledButton: { backgroundColor: theme.colors.surfaceVariant },
+  disabledButtonText: { color: theme.colors.textSecondary },
   modalLabel: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, fontWeight: '700' },
   payeeOptions: { gap: theme.spacing.xs },
 });

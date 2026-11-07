@@ -12,7 +12,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,6 +28,7 @@ interface GroupsScreenProps {
 export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
   const [books, setBooks] = useState<Book[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -290,7 +291,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         onRequestClose={() => setShowEditModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Book</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
@@ -362,7 +363,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         onRequestClose={() => setShowDeleteConfirm(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Delete Book</Text>
             </View>
@@ -397,7 +398,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         onRequestClose={() => setShowMemberDetails(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                 {selectedBook?.name} - Members
