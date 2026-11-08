@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(71);
+select plan(85);
 
 create temporary table test_ids (
   book_id uuid,
@@ -565,6 +565,65 @@ drop policy test_allow_transaction_update on public.transactions;
 drop policy test_allow_book_member_update on public.book_members;
 drop policy test_allow_invitation_update on public.invitations;
 revoke update on public.book_members, public.invitations from authenticated;
+
+-- Auth metadata mapping coverage for the profile provisioning trigger.
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, email_change,
+  email_change_token_new, recovery_token
+) values
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'meta-display@example.test', '', now(), '{"provider":"email","providers":["email"]}', '{"display_name":"Email Name"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated', 'meta-full@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"full_name":"Full Name"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'meta-name@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"name":"Simple Name"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'meta-priority@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"display_name":"Preferred","full_name":"Fallback"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'meta-empty@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'meta-whitespace-fallback@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"display_name":"   ","full_name":"Useful Name"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000007', 'authenticated', 'authenticated', 'meta-whitespace-only@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"display_name":"  ","full_name":"\t ","name":" "}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000008', 'authenticated', 'authenticated', 'meta-avatar@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"avatar_url":"https://example.test/avatar.png","picture":"https://example.test/picture.png"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000009', 'authenticated', 'authenticated', 'meta-picture@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"picture":"https://example.test/picture.png"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000010', 'authenticated', 'authenticated', 'meta-no-avatar@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"name":"No Avatar"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000011', 'authenticated', 'authenticated', 'meta-whitespace-name@example.test', '', now(), '{"provider":"google","providers":["google"]}', '{"display_name":"  ","full_name":"  ","name":"Final Name"}', now(), now(), '', '', '', '');
+
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000001'), 'Email Name', 'display_name metadata continues to provision email signup names');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000002'), 'Full Name', 'full_name metadata provisions the profile name');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000003'), 'Simple Name', 'name metadata provisions the profile name');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000004'), 'Preferred', 'display_name takes precedence over full_name');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000005'), '', 'missing name metadata produces an empty display_name');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000006'), 'Useful Name', 'whitespace-only display_name falls back to full_name');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000007'), '', 'whitespace-only name values are treated as missing');
+select extensions.is((select display_name from public.profiles where id = '20000000-0000-0000-0000-000000000011'), 'Final Name', 'whitespace-only higher-priority keys fall back to the next usable name');
+
+select extensions.lives_ok(
+  $$insert into auth.users (
+    instance_id, id, aud, role, email, encrypted_password,
+    email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+    created_at, updated_at, confirmation_token, email_change,
+    email_change_token_new, recovery_token
+  ) values (
+    '00000000-0000-0000-0000-000000000000', '20000000-0000-0000-0000-000000000012',
+    'authenticated', 'authenticated', 'meta-long@example.test', '', now(),
+    '{"provider":"google","providers":["google"]}',
+    jsonb_build_object('full_name', repeat('L', 140)), now(), now(), '', '', '', ''
+  )$$,
+  'a name longer than 120 characters does not break auth user creation'
+);
+select extensions.is((select char_length(display_name) from public.profiles where id = '20000000-0000-0000-0000-000000000012'), 120, 'profile display_name is truncated to 120 characters');
+
+select extensions.is((select avatar_url from public.profiles where id = '20000000-0000-0000-0000-000000000008'), 'https://example.test/avatar.png', 'avatar_url metadata takes precedence over picture');
+select extensions.is((select avatar_url from public.profiles where id = '20000000-0000-0000-0000-000000000009'), 'https://example.test/picture.png', 'picture metadata is used when avatar_url is absent');
+select extensions.is((select avatar_url from public.profiles where id = '20000000-0000-0000-0000-000000000010'), null::text, 'missing avatar metadata produces a null avatar_url');
+select extensions.ok(
+  not has_function_privilege('anon', 'public.handle_new_auth_user()', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'public.handle_new_auth_user()', 'EXECUTE')
+  and not exists (
+    select 1 from pg_proc as p
+    cross join lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) as a
+    where p.oid = 'public.handle_new_auth_user()'::regprocedure
+      and a.grantee = 0 and a.privilege_type = 'EXECUTE'
+  ),
+  'handle_new_auth_user is not executable by anon, authenticated, or PUBLIC'
+);
 
 select * from finish();
 rollback;
