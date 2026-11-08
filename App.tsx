@@ -3,11 +3,12 @@ import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { CurrencyProvider } from './src/contexts/CurrencyContext';
 import { ThemeProvider, useTheme } from './src/contexts/ThemeContext';
 import { AppNavigator } from './src/navigation/AppNavigator';
+import { DialogProvider } from './src/contexts/DialogContext';
+import { ThemedToast } from './src/components/ThemedToast';
 
 const AppContent = () => {
   const { theme } = useTheme();
@@ -16,7 +17,7 @@ const AppContent = () => {
     <>
       <StatusBar style={theme.colors.statusBar} />
       <AppNavigator />
-      <Toast />
+      <ThemedToast />
     </>
   );
 };
@@ -27,9 +28,11 @@ export default function App() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
           <AuthProvider>
-            <CurrencyProvider>
-              <AppContent />
-            </CurrencyProvider>
+            <DialogProvider>
+              <CurrencyProvider>
+                <AppContent />
+              </CurrencyProvider>
+            </DialogProvider>
           </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>

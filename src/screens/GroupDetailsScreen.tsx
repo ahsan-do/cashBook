@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -15,6 +15,7 @@ import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
+import { useDialog } from '../contexts/DialogContext';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
@@ -25,6 +26,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
+  const dialog = useDialog();
   const [book, setBook] = useState<Book | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [isOwner, setIsOwner] = useState(false);
@@ -76,20 +78,17 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       setTransactions((current) => [...current, ...page.transactions]);
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
-    } catch (loadError) { Alert.alert('Could not load more entries', toServiceError(loadError, 'Could not load transactions').message); }
+    } catch (loadError) { void dialog.notify({ title: 'Could not load more entries', message: toServiceError(loadError, 'Could not load transactions').message }); }
     finally { setLoadingMore(false); }
   };
 
-  const deleteEntry = (item: Transaction) => {
-    Alert.alert('Delete entry', `Delete “${item.title}”?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
+  const deleteEntry = async (item: Transaction) => {
+    if (await dialog.confirm({ title: 'Delete entry', message: `Delete “${item.title}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
         setActionId(item.id);
         try { await transactionService.deleteTransaction(item.id); await loadFirstPage(); }
-        catch (deleteError) { Alert.alert('Could not delete entry', toServiceError(deleteError, 'Could not delete transaction').message); }
+        catch (deleteError) { void dialog.notify({ title: 'Could not delete entry', message: toServiceError(deleteError, 'Could not delete transaction').message }); }
         finally { setActionId(null); }
-      } },
-    ]);
+    }
   };
 
   const sections: DaySection[] = useMemo(() => {

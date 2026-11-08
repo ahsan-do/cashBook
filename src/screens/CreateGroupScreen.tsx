@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,6 +12,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { bookService } from '../services/bookService';
+import { useDialog } from '../contexts/DialogContext';
+import Toast from 'react-native-toast-message';
 
 interface CreateGroupScreenProps {
   navigation: any;
@@ -20,6 +21,7 @@ interface CreateGroupScreenProps {
 
 export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation }) => {
   const { theme } = useTheme();
+  const dialog = useDialog();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [currencyCode, setCurrencyCode] = useState('PKR');
@@ -29,7 +31,7 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
   const handleCreateGroup = async () => {
     const trimmedName = name.trim();
     if (!trimmedName) {
-      Alert.alert('Error', 'Please enter a book name.');
+      void dialog.notify({ title: 'Error', message: 'Please enter a book name.' });
       return;
     }
 
@@ -41,14 +43,10 @@ export const CreateGroupScreen: React.FC<CreateGroupScreenProps> = ({ navigation
         description: description.trim() || null,
       });
 
-      Alert.alert('Success', 'Book created successfully!', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      Toast.show({ type: 'success', text1: 'Success', text2: 'Book created successfully!' });
+      navigation.goBack();
     } catch (error: any) {
-      Alert.alert('Error', error?.message || 'Could not create book. Please try again.');
+      void dialog.notify({ title: 'Error', message: error?.message || 'Could not create book. Please try again.' });
     } finally {
       setLoading(false);
     }

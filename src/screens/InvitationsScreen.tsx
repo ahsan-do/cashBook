@@ -7,7 +7,6 @@ import {
   ScrollView,
   RefreshControl,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,12 +16,15 @@ import { PendingInvitation } from '../types';
 import { invitationService } from '../services/invitationService';
 import { toServiceError } from '../services/serviceErrors';
 import { formatEntryDate } from '../utils/dateDisplay';
+import { useDialog } from '../contexts/DialogContext';
+import Toast from 'react-native-toast-message';
 
 interface InvitationsScreenProps { navigation: any; }
 
 export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const dialog = useDialog();
   const styles = React.useMemo(() => makeStyles(theme), [theme]);
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,10 +49,10 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
     setActionId(invitation.id);
     try {
       await invitationService.acceptInvitation(invitation.id);
-      Alert.alert('Success', `You have joined ${invitation.bookName}.`);
+      Toast.show({ type: 'success', text1: 'Success', text2: `You have joined ${invitation.bookName}.` });
       await fetchInvitations();
     } catch (actionError) {
-      Alert.alert('Could not accept invitation', toServiceError(actionError, 'Could not accept invitation').message);
+      void dialog.notify({ title: 'Could not accept invitation', message: toServiceError(actionError, 'Could not accept invitation').message });
     } finally {
       setActionId(null);
     }
@@ -62,7 +64,7 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
       await invitationService.declineInvitation(invitation.id);
       await fetchInvitations();
     } catch (actionError) {
-      Alert.alert('Could not decline invitation', toServiceError(actionError, 'Could not decline invitation').message);
+      void dialog.notify({ title: 'Could not decline invitation', message: toServiceError(actionError, 'Could not decline invitation').message });
     } finally {
       setActionId(null);
     }

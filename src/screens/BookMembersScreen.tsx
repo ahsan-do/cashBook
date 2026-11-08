@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,6 +13,7 @@ import { toServiceError } from '../services/serviceErrors';
 import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
 import { suggestSettlements } from '../utils/suggestSettlements';
+import { useDialog } from '../contexts/DialogContext';
 
 interface Props { navigation: any; route: any; }
 
@@ -21,6 +22,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const [book, setBook] = useState<Book | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
@@ -97,37 +99,28 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
       setInviteVisible(false);
       await load();
     } catch (inviteError) {
-      Alert.alert('Could not send invitation', toServiceError(inviteError, 'Could not send invitation').message);
+      void dialog.notify({ title: 'Could not send invitation', message: toServiceError(inviteError, 'Could not send invitation').message });
     } finally { setSaving(false); }
   };
 
-  const confirmRemove = (member: Member) => Alert.alert('Remove member', `Remove ${member.displayName || 'this member'} from the book?`, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Remove', style: 'destructive', onPress: async () => {
+  const confirmRemove = async (member: Member) => { if (await dialog.confirm({ title: 'Remove member', message: `Remove ${member.displayName || 'this member'} from the book?`, cancelLabel: 'Cancel', confirmLabel: 'Remove', destructive: true })) {
       setActionId(member.userId);
       try { await invitationService.removeMember(bookId!, member.userId); await load(); }
-      catch (actionError) { Alert.alert('Could not remove member', toServiceError(actionError, 'Could not remove member').message); }
+      catch (actionError) { void dialog.notify({ title: 'Could not remove member', message: toServiceError(actionError, 'Could not remove member').message }); }
       finally { setActionId(null); }
-    } },
-  ]);
+  } };
 
-  const leaveBook = () => Alert.alert('Leave book', `Leave “${book?.name ?? initialName ?? 'this book'}”?`, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Leave', style: 'destructive', onPress: async () => {
+  const leaveBook = async () => { if (await dialog.confirm({ title: 'Leave book', message: `Leave “${book?.name ?? initialName ?? 'this book'}”?`, cancelLabel: 'Cancel', confirmLabel: 'Leave', destructive: true })) {
       try { await invitationService.leaveBook(bookId!); navigation.goBack(); }
-      catch (actionError) { Alert.alert('Could not leave book', toServiceError(actionError, 'Could not leave book').message); }
-    } },
-  ]);
+      catch (actionError) { void dialog.notify({ title: 'Could not leave book', message: toServiceError(actionError, 'Could not leave book').message }); }
+  } };
 
-  const revokeInvitation = (invitation: Invitation) => Alert.alert('Revoke invitation', `Revoke the invitation for ${invitation.invitedEmail}?`, [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Revoke', style: 'destructive', onPress: async () => {
+  const revokeInvitation = async (invitation: Invitation) => { if (await dialog.confirm({ title: 'Revoke invitation', message: `Revoke the invitation for ${invitation.invitedEmail}?`, cancelLabel: 'Cancel', confirmLabel: 'Revoke', destructive: true })) {
       setActionId(invitation.id);
       try { await invitationService.revokeInvitation(invitation.id); await load(); }
-      catch (actionError) { Alert.alert('Could not revoke invitation', toServiceError(actionError, 'Could not revoke invitation').message); }
+      catch (actionError) { void dialog.notify({ title: 'Could not revoke invitation', message: toServiceError(actionError, 'Could not revoke invitation').message }); }
       finally { setActionId(null); }
-    } },
-  ]);
+  } };
 
   const openSettlement = (suggestion?: { fromUser: string; toUser: string; amount: number }) => {
     const currentSuggestion = suggestion ?? suggestions.find((item) => item.fromUser === user?.id);
@@ -142,33 +135,27 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     setSettleVisible(true);
   };
 
-  const confirmSettlement = () => {
+  const confirmSettlement = async () => {
     const payee = members.find((member) => member.userId === settleTo);
     if (!payee) return;
-    Alert.alert('Confirm payment', `Record ${currency} ${settleAmount} paid to ${payee.displayName}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Confirm', onPress: async () => {
+    if (await dialog.confirm({ title: 'Confirm payment', message: `Record ${currency} ${settleAmount} paid to ${payee.displayName}?`, cancelLabel: 'Cancel', confirmLabel: 'Confirm' })) {
         setSettlementSaving(true);
         try {
           await settlementService.recordSettlement(bookId!, settleTo, settleAmount, settleDate);
           setSettleVisible(false);
           await load();
         } catch (settlementError) {
-          Alert.alert('Could not record settlement', toServiceError(settlementError, 'Could not record settlement').message);
+          void dialog.notify({ title: 'Could not record settlement', message: toServiceError(settlementError, 'Could not record settlement').message });
         } finally { setSettlementSaving(false); }
-      } },
-    ]);
+    }
   };
 
-  const confirmDeleteSettlement = (settlement: Settlement) => Alert.alert('Delete settlement', 'Delete this payment from the shared balance history?', [
-    { text: 'Cancel', style: 'cancel' },
-    { text: 'Delete', style: 'destructive', onPress: async () => {
+  const confirmDeleteSettlement = async (settlement: Settlement) => { if (await dialog.confirm({ title: 'Delete settlement', message: 'Delete this payment from the shared balance history?', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
       setActionId(settlement.id);
       try { await settlementService.deleteSettlement(settlement.id); await load(); }
-      catch (deleteError) { Alert.alert('Could not delete settlement', toServiceError(deleteError, 'Could not delete settlement').message); }
+      catch (deleteError) { void dialog.notify({ title: 'Could not delete settlement', message: toServiceError(deleteError, 'Could not delete settlement').message }); }
       finally { setActionId(null); }
-    } },
-  ]);
+  } };
 
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}>

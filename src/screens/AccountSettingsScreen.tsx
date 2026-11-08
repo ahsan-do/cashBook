@@ -5,12 +5,13 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDialog } from '../contexts/DialogContext';
+import Toast from 'react-native-toast-message';
 
 interface AccountSettingsScreenProps {
   navigation: any;
@@ -19,31 +20,17 @@ interface AccountSettingsScreenProps {
 export const AccountSettingsScreen: React.FC<AccountSettingsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const dialog = useDialog();
   const styles = makeStyles(theme);
 
-  const handleChangePassword = () => {
-    Alert.alert('Change Password', 'Password change functionality will be implemented soon.');
-  };
+  const handleChangePassword = () => Toast.show({ type: 'info', text1: 'Change Password', text2: 'Password change functionality will be implemented soon.' });
 
-  const handleChangeEmail = () => {
-    Alert.alert('Change Email', 'Email change functionality will be implemented soon.');
-  };
+  const handleChangeEmail = () => Toast.show({ type: 'info', text1: 'Change Email', text2: 'Email change functionality will be implemented soon.' });
 
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Delete Account', 'Account deletion functionality will be implemented soon.');
-          },
-        },
-      ]
-    );
+  const handleDeleteAccount = async () => {
+    if (await dialog.confirm({ title: 'Delete Account', message: 'Are you sure you want to delete your account? This action cannot be undone.', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
+      void dialog.notify({ title: 'Delete Account', message: 'Account deletion functionality will be implemented soon.' });
+    }
   };
 
   const menuItems = [

@@ -4,7 +4,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,6 +13,8 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { CurrencySelector } from '../components/CurrencySelector';
 import { invitationService } from '../services/invitationService';
+import { useDialog } from '../contexts/DialogContext';
+import Toast from 'react-native-toast-message';
 
 interface ProfileScreenProps {
   navigation: any;
@@ -23,34 +24,16 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   const { user, isEmailVerified, logout, sendEmailVerification } = useAuth();
   const { selectedCurrency, currencies } = useCurrency();
   const { theme, themeMode } = useTheme();
+  const dialog = useDialog();
   const styles = makeStyles(theme);
   const [showCurrencySelector, setShowCurrencySelector] = useState(false);
   const [invitationCount, setInvitationCount] = useState(0);
   const [loadingInvitations, setLoadingInvitations] = useState(true);
   const [isResendingVerification, setIsResendingVerification] = useState(false);
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await logout();
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout');
-            }
-          },
-        },
-      ]
-    );
+  const handleLogout = async () => {
+    if (!await dialog.confirm({ title: 'Logout', message: 'Are you sure you want to logout?', cancelLabel: 'Cancel', confirmLabel: 'Logout', destructive: true })) return;
+    try { await logout(); } catch (error) { void dialog.notify({ title: 'Error', message: 'Failed to logout' }); }
   };
 
   const fetchInvitationCount = async () => {
@@ -74,13 +57,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     setIsResendingVerification(true);
     try {
       await sendEmailVerification();
-      Alert.alert(
-        'Verification Email Sent',
-        'A new verification email has been sent to your inbox. Please check your email and click the verification link.',
-        [{ text: 'OK' }]
-      );
+      Toast.show({ type: 'success', text1: 'Verification Email Sent', text2: 'A new verification email has been sent to your inbox. Please check your email and click the verification link.' });
     } catch (error: any) {
-      Alert.alert('Error', `Failed to send verification email: ${error.message}`);
+      void dialog.notify({ title: 'Error', message: `Failed to send verification email: ${error.message}` });
     } finally {
       setIsResendingVerification(false);
     }
@@ -144,22 +123,22 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
     {
       title: 'Notifications',
       icon: 'notifications-outline',
-      onPress: () => Alert.alert('Notifications', 'Notifications settings will be implemented soon.'),
+      onPress: () => Toast.show({ type: 'info', text1: 'Notifications', text2: 'Notifications settings will be implemented soon.' }),
     },
     {
       title: 'Privacy & Security',
       icon: 'shield-outline',
-      onPress: () => Alert.alert('Privacy & Security', 'Privacy and security settings will be implemented soon.'),
+      onPress: () => Toast.show({ type: 'info', text1: 'Privacy & Security', text2: 'Privacy and security settings will be implemented soon.' }),
     },
     {
       title: 'Help & Support',
       icon: 'help-circle-outline',
-      onPress: () => Alert.alert('Help & Support', 'Help and support will be implemented soon.'),
+      onPress: () => Toast.show({ type: 'info', text1: 'Help & Support', text2: 'Help and support will be implemented soon.' }),
     },
     {
       title: 'About',
       icon: 'information-circle-outline',
-      onPress: () => Alert.alert('About', 'About page will be implemented soon.'),
+      onPress: () => Toast.show({ type: 'info', text1: 'About', text2: 'About page will be implemented soon.' }),
     },
   ];
 

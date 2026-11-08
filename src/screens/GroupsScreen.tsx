@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   RefreshControl,
   Modal,
   TextInput,
@@ -20,6 +19,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Book, Member } from '../types';
 import { bookService } from '../services/bookService';
 import { Skeleton } from '../components/Skeleton';
+import { useDialog } from '../contexts/DialogContext';
 
 interface GroupsScreenProps {
   navigation: any;
@@ -28,6 +28,7 @@ interface GroupsScreenProps {
 export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
+  const dialog = useDialog();
   const insets = useSafeAreaInsets();
   const [books, setBooks] = useState<Book[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -186,15 +187,14 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         },
       ]}
       onPress={() => void handleOpenBook(item)}
-      onLongPress={isBookOwner(item) ? () => Alert.alert(
-        'Book Options',
-        'What would you like to do?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Edit Book', onPress: () => handleEditBook(item) },
-          { text: 'Delete Book', style: 'destructive', onPress: () => handleDeleteBook(item) },
-        ]
-      ) : undefined}
+      onLongPress={isBookOwner(item) ? async () => {
+        const action = await dialog.choose({ title: 'Book Options', message: 'What would you like to do?', cancelLabel: 'Cancel', actions: [
+          { value: 'edit', label: 'Edit Book' },
+          { value: 'delete', label: 'Delete Book', destructive: true },
+        ] });
+        if (action === 'edit') handleEditBook(item);
+        if (action === 'delete') handleDeleteBook(item);
+      } : undefined}
     >
       <View style={styles.groupInfo}>
         <Text style={[styles.groupName, { color: theme.colors.text }]}>{item.name}</Text>
