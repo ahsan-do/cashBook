@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { emailAuthEnabled } from '../config/auth';
 
 interface LoginScreenProps { navigation: any; }
 type Field = 'email' | 'password';
@@ -20,7 +21,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [formError, setFormError] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
   const passwordRef = useRef<TextInput>(null);
-  const { signIn } = useAuth();
+  const { signIn, signInWithGoogle } = useAuth();
   const { theme } = useTheme();
   const styles = makeStyles(theme);
 
@@ -48,6 +49,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setFormError('');
+    setEmailNotConfirmed(false);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setFormError(error?.message || 'Google sign-in could not be completed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const inputStyle = (field: Field) => [
     styles.input,
     { backgroundColor: theme.colors.surface, borderColor: fieldError[field] ? theme.colors.error : focused === field ? theme.colors.primaryVariant : theme.colors.border, color: theme.colors.text },
@@ -63,7 +77,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
             <Text style={styles.subtitle}>Sign in to see your cash books.</Text>
 
             <View style={styles.form}>
-              <View>
+              <TouchableOpacity style={styles.googleButton} onPress={() => void handleGoogleSignIn()} disabled={loading} accessibilityRole="button" accessibilityLabel="Continue with Google" accessibilityState={{ disabled: loading }}>
+                {loading ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.googleButtonText}>Continue with Google</Text>}
+              </TouchableOpacity>
+              {emailAuthEnabled && <View style={styles.dividerRow}><View style={styles.divider} /><Text style={styles.dividerText}>or continue with email</Text><View style={styles.divider} /></View>}
+
+              {emailAuthEnabled && <View>
                 <Text style={styles.label}>Email</Text>
                 <TextInput
                   style={inputStyle('email')} value={email} onChangeText={(value) => { setEmail(value); setFieldError((current) => ({ ...current, email: undefined })); }}
@@ -73,9 +92,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   editable={!loading} accessibilityLabel="Email address" accessibilityState={{ disabled: loading }}
                 />
                 {!!fieldError.email && <Text style={styles.fieldError}>{fieldError.email}</Text>}
-              </View>
+              </View>}
 
-              <View>
+              {emailAuthEnabled && <View>
                 <Text style={styles.label}>Password</Text>
                 <View style={[styles.passwordWrap, { backgroundColor: theme.colors.surface, borderColor: fieldError.password ? theme.colors.error : focused === 'password' ? theme.colors.primaryVariant : theme.colors.border }]}>
                   <TextInput
@@ -91,17 +110,17 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 </View>
                 {!!fieldError.password && <Text style={styles.fieldError}>{fieldError.password}</Text>}
-              </View>
+              </View>}
 
               {!!formError && <View>
                 <Text style={styles.formError} accessibilityRole="alert">{formError}</Text>
-                {emailNotConfirmed && <TouchableOpacity style={styles.resendLink} onPress={() => navigation.navigate('EmailVerification', { email: email.trim().toLowerCase() })} accessibilityRole="button"><Text style={styles.link}>Resend confirmation email</Text></TouchableOpacity>}
+                {emailAuthEnabled && emailNotConfirmed && <TouchableOpacity style={styles.resendLink} onPress={() => navigation.navigate('EmailVerification', { email: email.trim().toLowerCase() })} accessibilityRole="button"><Text style={styles.link}>Resend confirmation email</Text></TouchableOpacity>}
               </View>}
 
-              <TouchableOpacity style={[styles.primaryButton, { opacity: loading ? 0.8 : 1 }]} onPress={() => void handleLogin()} disabled={loading} accessibilityRole="button" accessibilityLabel="Sign in">
+              {emailAuthEnabled && <TouchableOpacity style={[styles.primaryButton, { opacity: loading ? 0.8 : 1 }]} onPress={() => void handleLogin()} disabled={loading} accessibilityRole="button" accessibilityLabel="Sign in">
                 {loading ? <ActivityIndicator color={theme.colors.onPrimary} /> : <Text style={styles.primaryButtonText}>Sign in</Text>}
-              </TouchableOpacity>
-              <View style={styles.footer}><Text style={styles.footerText}>New to Cashbook? </Text><TouchableOpacity style={styles.textButton} onPress={() => navigation.navigate('SignUp')} accessibilityRole="button"><Text style={styles.link}>Create account</Text></TouchableOpacity></View>
+              </TouchableOpacity>}
+              {emailAuthEnabled && <View style={styles.footer}><Text style={styles.footerText}>New to Cashbook? </Text><TouchableOpacity style={styles.textButton} onPress={() => navigation.navigate('SignUp')} accessibilityRole="button"><Text style={styles.link}>Create account</Text></TouchableOpacity></View>}
             </View>
           </View>
         </ScrollView>
@@ -119,6 +138,11 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   title: { color: theme.colors.text, fontSize: theme.typeSize.display, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
   subtitle: { color: theme.colors.textSecondary, fontSize: theme.typeSize.body, marginTop: theme.spacing.sm, marginBottom: theme.spacing.xxxl },
   form: { gap: theme.spacing.lg },
+  googleButton: { minHeight: 52, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
+  googleButtonText: { color: theme.colors.text, fontSize: theme.typeSize.body, fontWeight: '700' },
+  dividerRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  divider: { height: 1, flex: 1, backgroundColor: theme.colors.border },
+  dividerText: { color: theme.colors.textTertiary, fontSize: theme.typeSize.caption },
   label: { color: theme.colors.text, fontSize: theme.typeSize.small, fontWeight: '700', marginBottom: theme.spacing.sm },
   input: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.lg, fontSize: theme.typeSize.body },
   passwordWrap: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, flexDirection: 'row', alignItems: 'center' },

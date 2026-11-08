@@ -21,6 +21,7 @@ import { AccountSettingsScreen } from '../screens/AccountSettingsScreen';
 import { EmailVerificationScreen } from '../screens/EmailVerificationScreen';
 import { ThemeSettingsScreen } from '../screens/ThemeSettingsScreen';
 import { BookMembersScreen } from '../screens/BookMembersScreen';
+import { emailAuthEnabled } from '../config/auth';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -28,7 +29,7 @@ const Tab = createBottomTabNavigator();
 const AuthStack: React.FC<{ initialRouteName: string }> = ({ initialRouteName }) => (
   <Stack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
-    <Stack.Screen name="SignUp" component={SignUpScreen} />
+    {emailAuthEnabled && <Stack.Screen name="SignUp" component={SignUpScreen} />}
     <Stack.Screen name="EmailVerification" component={EmailVerificationScreen} />
   </Stack.Navigator>
 );

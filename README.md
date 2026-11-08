@@ -5,7 +5,7 @@ Cashbook is an Expo and React Native app for shared cash books. Signed-in users 
 ## Stack
 
 - **App:** Expo SDK 53, React Native, TypeScript, React Navigation, and React Context.
-- **Authentication:** Supabase Auth with email and password. Email confirmation is required before book data is available.
+- **Authentication:** Supabase Auth with Google OAuth and optional email/password sign-in. Email confirmation is required before book data is available.
 - **Data:** Supabase Postgres with Row Level Security. Database RPCs create books with their owner membership, accept and manage invitations, soft-delete records, calculate totals, and page transactions with running balances.
 - **Local services:** Supabase CLI and Docker for the local database/API and email testing inbox.
 
@@ -24,8 +24,11 @@ Copy `.env.example` to `.env` and set these variables to your Supabase project o
 
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_ENABLE_EMAIL_AUTH` (set to `true` to show email/password sign-in and sign-up; missing or any other value keeps email auth off)
 
 Use only the Supabase anon/publishable key in the app. Never put a `service_role` key in the app or repository.
+
+For Google sign-in, enable Google in Supabase Auth, configure the Google OAuth client credentials, and allow `cashbook://auth/callback` in Supabase Auth's redirect URLs. Set the Google OAuth client's authorized redirect URI to your Supabase project's `/auth/v1/callback` URL.
 
 ## Local Supabase
 

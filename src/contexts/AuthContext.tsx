@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import type { EmailOtpType, Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '../services/supabase';
+import { getAuthCallbackParameter, parseAuthCallbackUrl } from '../utils/authCallback';
 import { User } from '../types';
 
 const emailRedirectUrl = Linking.createURL('auth/callback');
+const oauthRedirectUrl = 'cashbook://auth/callback';
 const supportedOtpTypes = new Set<EmailOtpType>([
   'signup',
   'invite',
@@ -23,6 +26,7 @@ interface AuthContextType {
   authLinkMessage: string | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string, displayName: string) => Promise<boolean>;
   logout: () => Promise<void>;
   sendEmailVerification: (email?: string) => Promise<void>;
@@ -59,9 +63,6 @@ const appUserFromAuthUser = (authUser: SupabaseUser): User => {
   };
 };
 
-const queryValue = (value: string | string[] | undefined): string | undefined =>
-  Array.isArray(value) ? value[0] : value;
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
@@ -69,84 +70,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const [authInitializing, setAuthInitializing] = useState(true);
   const [authLinkMessage, setAuthLinkMessage] = useState<string | null>(null);
+  const oauthFlowActive = useRef(false);
+  const mounted = useRef(true);
+
+  const applySession = useCallback((nextSession: Session | null) => {
+    if (!mounted.current) return;
+    setSession(nextSession);
+    setAuthUser(nextSession?.user ?? null);
+    if (!nextSession || nextSession.user.email_confirmed_at) {
+      setPendingEmail(null);
+    }
+  }, []);
+
+  const completeAuthCallback = useCallback(async (url: string, publishMessage = true) => {
+    const parsedLink = Linking.parse(url);
+    const path = [parsedLink.hostname, parsedLink.path]
+      .filter(Boolean)
+      .join('/')
+      .replace(/^\/+/, '');
+    if (path !== 'auth/callback') return { ignored: true as const };
+
+    const callback = parseAuthCallbackUrl(url);
+    const tokenHash = getAuthCallbackParameter(url, 'token_hash');
+    const otpType = getAuthCallbackParameter(url, 'type');
+    const handleError = (code: string, description: string) => {
+      const message = code === 'otp_expired' || /expired|already been used|invalid.*link/i.test(description)
+        ? 'This confirmation link has expired or has already been used. Request a new confirmation email to continue.'
+        : `The sign-in link could not be completed: ${description}`;
+      if (publishMessage) setAuthLinkMessage(message);
+      return { error: message };
+    };
+
+    if ('error' in callback && callback.error !== 'missing_code') {
+      return handleError(callback.error, callback.errorDescription);
+    }
+
+    if (tokenHash && otpType && supportedOtpTypes.has(otpType as EmailOtpType)) {
+      const { data, error } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: otpType as EmailOtpType,
+      });
+      if (error) return handleError(error.code ?? 'otp_error', error.message);
+      applySession(data.session);
+      setAuthLinkMessage(null);
+      return {};
+    }
+
+    if ('error' in callback) return handleError(callback.error, callback.errorDescription);
+
+    const { data, error } = await supabase.auth.exchangeCodeForSession(callback.code);
+    if (error) return handleError(error.code ?? 'exchange_error', error.message);
+    applySession(data.session);
+    setAuthLinkMessage(null);
+    return {};
+  }, [applySession]);
 
   useEffect(() => {
-    let mounted = true;
-
-    const applySession = (nextSession: Session | null) => {
-      if (!mounted) return;
-      setSession(nextSession);
-      setAuthUser(nextSession?.user ?? null);
-      if (!nextSession || nextSession.user.email_confirmed_at) {
-        setPendingEmail(null);
-      }
-    };
-
-    const completeEmailConfirmation = async (url: string) => {
-      const parsed = Linking.parse(url);
-      const path = [parsed.hostname, parsed.path]
-        .filter(Boolean)
-        .join('/')
-        .replace(/^\/+/, '');
-      if (path !== 'auth/callback') return;
-
-      const params = parsed.queryParams ?? {};
-      const fragmentParams = url.split('#')[1]?.split('&') ?? [];
-      const getParam = (key: string) => {
-        const fromQuery = queryValue(params[key]);
-        if (fromQuery) return fromQuery;
-        const pair = fragmentParams.find((part) => part.split('=')[0] === key);
-        if (!pair) return undefined;
-        try {
-          return decodeURIComponent((pair.split('=').slice(1).join('=') || '').replace(/\+/g, ' '));
-        } catch {
-          return pair.split('=').slice(1).join('=');
-        }
-      };
-      const code = getParam('code');
-      const tokenHash = getParam('token_hash');
-      const otpType = getParam('type');
-      const callbackError = getParam('error_description') ?? getParam('error') ?? getParam('error_code');
-      if (callbackError) {
-        const errorCode = getParam('error_code');
-        const isExpired = errorCode === 'otp_expired' || /expired|already been used|invalid.*link/i.test(callbackError);
-        setAuthLinkMessage(
-          isExpired
-            ? 'This confirmation link has expired or has already been used. Request a new confirmation email to continue.'
-            : `The confirmation link could not be completed: ${callbackError.replace(/\+/g, ' ')}`
-        );
-        return;
-      }
-
-      if (!code && tokenHash && otpType && supportedOtpTypes.has(otpType as EmailOtpType)) {
-        const { data, error } = await supabase.auth.verifyOtp({
-          token_hash: tokenHash,
-          type: otpType as EmailOtpType,
-        });
-        if (error) {
-          setAuthLinkMessage('This confirmation link has expired or has already been used. Request a new confirmation email to continue.');
-          return;
-        }
-        applySession(data.session);
-        return;
-      }
-
-      if (code) {
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) {
-          setAuthLinkMessage('This confirmation link has expired or has already been used. Request a new confirmation email to continue.');
-          return;
-        }
-        applySession(data.session);
-      }
-    };
-
+    mounted.current = true;
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       applySession(nextSession);
     });
     const linkListener = Linking.addEventListener('url', ({ url }) => {
-      void completeEmailConfirmation(url).catch((error: unknown) => {
-        console.error('Unable to complete the Supabase email confirmation link:', error);
+      if (oauthFlowActive.current) return;
+      void completeAuthCallback(url).catch((error: unknown) => {
+        console.error('Unable to complete the Supabase auth link:', error);
         setAuthLinkMessage('The confirmation link could not be completed. Request a new confirmation email and try again.');
       });
     });
@@ -155,7 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const initialUrl = await Linking.getInitialURL();
         if (initialUrl) {
-          await completeEmailConfirmation(initialUrl);
+          await completeAuthCallback(initialUrl);
         }
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -164,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Unable to restore the Supabase session:', error);
         applySession(null);
       } finally {
-        if (mounted) {
+        if (mounted.current) {
           setLoading(false);
           setAuthInitializing(false);
         }
@@ -174,11 +161,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void initializeAuth();
 
     return () => {
-      mounted = false;
+      mounted.current = false;
       authListener.subscription.unsubscribe();
       linkListener.remove();
     };
-  }, []);
+  }, [applySession, completeAuthCallback]);
 
   const runWithLoading = async <T,>(action: () => Promise<T>): Promise<T> => {
     setLoading(true);
@@ -195,6 +182,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     runWithLoading(async () => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+    });
+
+  const signInWithGoogle = async () =>
+    runWithLoading(async () => {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: oauthRedirectUrl,
+          skipBrowserRedirect: true,
+          queryParams: { prompt: 'select_account' },
+        },
+      });
+      if (error) throw error;
+      if (!data.url) throw new Error('Google sign-in could not be started. Please try again.');
+
+      const challengeMethod = new URL(data.url).searchParams.get('code_challenge_method');
+      
+      if (challengeMethod !== 's256') {
+        throw new Error('Secure Google sign-in could not be started. Please try again.');
+      }
+
+      oauthFlowActive.current = true;
+      try {
+        const result = await WebBrowser.openAuthSessionAsync(data.url, oauthRedirectUrl);
+        if (result.type === 'cancel' || result.type === 'dismiss') return;
+        if (result.type !== 'success' || !result.url) {
+          throw new Error('Google sign-in did not return a valid response. Please try again.');
+        }
+
+        const callbackResult = await completeAuthCallback(result.url, false);
+        if ('error' in callbackResult) throw new Error(callbackResult.error);
+        if ('ignored' in callbackResult) {
+          throw new Error('Google sign-in returned an unexpected redirect. Please try again.');
+        }
+      } finally {
+        oauthFlowActive.current = false;
+      }
     });
 
   const signUp = async (email: string, password: string, displayName: string) =>
@@ -268,6 +292,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     authLinkMessage,
     loading,
     signIn,
+    signInWithGoogle,
     signUp,
     logout,
     sendEmailVerification: resendVerificationEmail,

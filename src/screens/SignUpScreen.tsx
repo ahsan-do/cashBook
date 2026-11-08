@@ -23,7 +23,7 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
   const emailRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const confirmPasswordRef = useRef<TextInput>(null);
-  const { signUp } = useAuth();
+  const { signUp, signInWithGoogle } = useAuth();
   const { theme } = useTheme();
   const styles = makeStyles(theme);
 
@@ -52,6 +52,18 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setFormError('');
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      setFormError(error?.message || 'Google sign-in could not be completed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fieldStyle = (field: Field) => [styles.input, {
     backgroundColor: theme.colors.surface,
     borderColor: fieldErrors[field] ? theme.colors.error : focused === field ? theme.colors.primaryVariant : theme.colors.border,
@@ -71,6 +83,11 @@ export const SignUpScreen: React.FC<SignUpScreenProps> = ({ navigation }) => {
             <Text style={styles.subtitle}>A clearer view of your cash starts here.</Text>
 
             <View style={styles.form}>
+              <TouchableOpacity style={styles.googleButton} onPress={() => void handleGoogleSignIn()} disabled={loading} accessibilityRole="button" accessibilityLabel="Continue with Google" accessibilityState={{ disabled: loading }}>
+                {loading ? <ActivityIndicator color={theme.colors.text} /> : <Text style={styles.googleButtonText}>Continue with Google</Text>}
+              </TouchableOpacity>
+              <View style={styles.dividerRow}><View style={styles.divider} /><Text style={styles.dividerText}>or create an account with email</Text><View style={styles.divider} /></View>
+
               <View>
                 <Text style={styles.label}>Name</Text>
                 <TextInput style={fieldStyle('name')} value={displayName} onChangeText={(value) => { setDisplayName(value); clearError('name'); }} placeholder="Your name" placeholderTextColor={theme.colors.textTertiary} autoCapitalize="words" autoCorrect={false} textContentType="name" autoComplete="name" returnKeyType="next" onFocus={() => setFocused('name')} onBlur={() => setFocused(null)} onSubmitEditing={() => emailRef.current?.focus()} editable={!loading} accessibilityLabel="Name" />
@@ -120,6 +137,11 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   title: { color: theme.colors.text, fontSize: theme.typeSize.display, lineHeight: 40, fontWeight: '800', letterSpacing: -0.8 },
   subtitle: { color: theme.colors.textSecondary, fontSize: theme.typeSize.body, marginTop: theme.spacing.sm, marginBottom: theme.spacing.xxl },
   form: { gap: theme.spacing.lg },
+  googleButton: { minHeight: 52, borderRadius: theme.radius.md, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
+  googleButtonText: { color: theme.colors.text, fontSize: theme.typeSize.body, fontWeight: '700' },
+  dividerRow: { minHeight: 24, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  divider: { height: 1, flex: 1, backgroundColor: theme.colors.border },
+  dividerText: { color: theme.colors.textTertiary, fontSize: theme.typeSize.caption },
   label: { color: theme.colors.text, fontSize: theme.typeSize.small, fontWeight: '700', marginBottom: theme.spacing.sm },
   input: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.lg, fontSize: theme.typeSize.body },
   passwordWrap: { minHeight: 54, borderWidth: 1.5, borderRadius: theme.radius.md, flexDirection: 'row', alignItems: 'center' },
