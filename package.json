@@ -7,7 +7,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "test": "node tests/unit/money.test.mjs && node tests/unit/serviceErrors.test.mjs && node tests/unit/suggestSettlements.test.mjs && node tests/unit/pkceAndAuthCallback.test.mjs && node tests/unit/dialogQueue.test.mjs"
+    "test": "node tests/unit/money.test.mjs && node tests/unit/serviceErrors.test.mjs && node tests/unit/suggestSettlements.test.mjs && node tests/unit/pkceAndAuthCallback.test.mjs && node tests/unit/dialogQueue.test.mjs && node tests/unit/entryCategories.test.mjs"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",

@@ -1,14 +1,43 @@
-import { Ionicons } from '@expo/vector-icons';
+import type { TransactionType } from '../types';
 
-export const categoryOptions: Array<{ name: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { name: 'Food', icon: 'restaurant-outline' },
-  { name: 'Rent', icon: 'home-outline' },
-  { name: 'Bills', icon: 'receipt-outline' },
-  { name: 'Transport', icon: 'bus-outline' },
-  { name: 'Shopping', icon: 'cart-outline' },
-  { name: 'Health', icon: 'medkit-outline' },
-  { name: 'Other', icon: 'ellipsis-horizontal-circle-outline' },
-];
+type IoniconName = keyof typeof import('@expo/vector-icons').Ionicons.glyphMap;
+export interface EntryCategory {
+  name: string;
+  icon: IoniconName;
+  accessibilityLabel: string;
+}
 
-export const categoryIcon = (category: string): keyof typeof Ionicons.glyphMap =>
-  categoryOptions.find((option) => option.name.toLowerCase() === category.trim().toLowerCase())?.icon ?? 'pricetag-outline';
+const category = (name: string, icon: IoniconName): EntryCategory => ({
+  name,
+  icon,
+  accessibilityLabel: `${name} category`,
+});
+
+export const categoriesByType: Record<TransactionType, EntryCategory[]> = {
+  cash_out: [
+    category('Food', 'restaurant-outline'),
+    category('Rent', 'home-outline'),
+    category('Bills', 'receipt-outline'),
+    category('Transport', 'bus-outline'),
+    category('Shopping', 'cart-outline'),
+    category('Health', 'medkit-outline'),
+    category('Other', 'ellipsis-horizontal-circle-outline'),
+  ],
+  cash_in: [
+    category('Salary', 'wallet-outline'),
+    category('Business', 'briefcase-outline'),
+    category('Rent received', 'home-outline'),
+    category('Allowance', 'hand-left-outline'),
+    category('Gift', 'gift-outline'),
+    category('Refund', 'return-down-back-outline'),
+    category('Contribution', 'people-outline'),
+    category('Other', 'ellipsis-horizontal-circle-outline'),
+  ],
+};
+
+export const categoryIcon = (name: string, type: TransactionType): IoniconName =>
+  categoriesByType[type].find((item) => item.name.toLowerCase() === name.trim().toLowerCase())?.icon ?? 'pricetag-outline';
+
+export const entryCategory = (name: string, type: TransactionType): EntryCategory =>
+  categoriesByType[type].find((item) => item.name.toLowerCase() === name.trim().toLowerCase())
+    ?? category(name, 'pricetag-outline');

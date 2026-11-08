@@ -23,10 +23,10 @@ import { useTheme } from '../contexts/ThemeContext';
 import { transactionService } from '../services/transactionService';
 import { parseMoneyAmount } from '../services/money';
 import { toServiceError } from '../services/serviceErrors';
-import { categoryOptions } from '../theme/categories';
+import { categoriesByType, entryCategory } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
 
-const RECENT_CATEGORIES_KEY = 'cashbook_recent_categories';
+const RECENT_CATEGORIES_KEY = 'cashbook_recent_categories_by_type';
 const today = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -54,7 +54,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
   const [category, setCategory] = useState('Other');
   const [note, setNote] = useState('');
   const [entryDate, setEntryDate] = useState(today());
-  const [recentCategories, setRecentCategories] = useState<string[]>([]);
+  const [recentCategoriesByType, setRecentCategoriesByType] = useState<Record<TransactionType, string[]>>({ cash_in: [], cash_out: [] });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
@@ -102,14 +102,16 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
     void AsyncStorage.getItem(RECENT_CATEGORIES_KEY).then((raw) => {
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const clean = parsed.filter((item): item is string => typeof item === 'string');
-          const recent = clean.filter((item) => categoryOptions.some((option) => option.name === item));
-          setRecentCategories(recent);
-          if (!editingTransaction && recent.length) setCategory(recent[0]);
-        }
+        const legacy = Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+        const rawByType = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+        const next: Record<TransactionType, string[]> = {
+          cash_out: (Array.isArray(rawByType.cash_out) ? rawByType.cash_out : legacy).filter((name: unknown) => typeof name === 'string' && categoriesByType.cash_out.some((item) => item.name === name)),
+          cash_in: (Array.isArray(rawByType.cash_in) ? rawByType.cash_in : []).filter((name: unknown) => typeof name === 'string' && categoriesByType.cash_in.some((item) => item.name === name)),
+        };
+        setRecentCategoriesByType(next);
+        if (!editingTransaction && next.cash_out.length) setCategory(next.cash_out[0]);
       }
-    }).catch(() => setRecentCategories([]));
+    }).catch(() => setRecentCategoriesByType({ cash_in: [], cash_out: [] }));
   }, [visible, initialBook, user?.id, editingTransaction]);
 
   useEffect(() => {
@@ -140,10 +142,16 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
     return () => { active = false; };
   }, [visible, bookId, editingTransaction, user?.id]);
 
+  const recentCategories = recentCategoriesByType[type];
+  const typeCategories = categoriesByType[type];
+  const legacyCategory = editingTransaction && category === editingTransaction.category && !typeCategories.some((item) => item.name === category)
+    ? entryCategory(category, type)
+    : null;
   const categories = useMemo(() => [
-    ...recentCategories.map((name) => categoryOptions.find((item) => item.name === name)!).filter(Boolean),
-    ...categoryOptions.filter((item) => !recentCategories.includes(item.name)),
-  ], [recentCategories]);
+    ...recentCategories.map((name) => typeCategories.find((item) => item.name === name)!).filter(Boolean),
+    ...typeCategories.filter((item) => !recentCategories.includes(item.name)),
+    ...(legacyCategory ? [legacyCategory] : []),
+  ], [recentCategories, typeCategories, legacyCategory]);
 
   const inputStyle = [styles.input, {
     backgroundColor: theme.colors.surfaceVariant,
@@ -210,9 +218,12 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
           await transactionService.addTransaction({ ...transactionInput, type });
         }
       }
-      const updatedCategories = [normalizedCategory, ...recentCategories.filter((item) => item !== normalizedCategory)].slice(0, 7);
-      setRecentCategories(updatedCategories);
-      try { await AsyncStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(updatedCategories)); } catch { /* Recent categories are a convenience, not part of the transaction save. */ }
+      const updatedCategoriesByType = {
+        ...recentCategoriesByType,
+        [type]: [normalizedCategory, ...recentCategories.filter((item) => item !== normalizedCategory)].slice(0, categoriesByType[type].length),
+      };
+      setRecentCategoriesByType(updatedCategoriesByType);
+      try { await AsyncStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(updatedCategoriesByType)); } catch { /* Recent categories are a convenience, not part of the transaction save. */ }
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Haptics may be unavailable on some devices. */ }
       onClose();
       void onSaved();
@@ -274,7 +285,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
                 const selected = type === option;
                 const lockedToCashOut = Boolean(editingTransaction?.paidBy) && option === 'cash_in';
                 const label = option === 'cash_in' ? 'Cash In' : 'Cash Out';
-                return <TouchableOpacity key={option} style={[styles.typeButton, selected && { backgroundColor: theme.colors.primary }, lockedToCashOut && { opacity: 0.4 }]} onPress={() => { if (!lockedToCashOut) setType(option); }} accessibilityRole="button" accessibilityState={{ selected, disabled: lockedToCashOut }}>
+                return <TouchableOpacity key={option} style={[styles.typeButton, selected && { backgroundColor: theme.colors.primary }, lockedToCashOut && { opacity: 0.4 }]} onPress={() => { if (!lockedToCashOut && option !== type) { setType(option); setCategory(recentCategoriesByType[option][0] ?? 'Other'); } }} accessibilityRole="button" accessibilityState={{ selected, disabled: lockedToCashOut }}>
                   <Ionicons name={option === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={18} color={selected ? theme.colors.onPrimary : theme.colors.text} />
                   <Text style={[styles.typeText, { color: selected ? theme.colors.onPrimary : theme.colors.text }]}>{option === 'cash_in' ? '+ ' : '− '}{label}</Text>
                 </TouchableOpacity>;
@@ -289,7 +300,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
               <TouchableOpacity style={styles.dateControl} onPress={() => shiftDate(1)} accessibilityRole="button" accessibilityLabel="Next day"><Ionicons name="chevron-forward" size={22} color={theme.colors.text} /></TouchableOpacity>
             </View>}
             <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Category</Text>
-            <View style={styles.categoryGrid}>{categories.map((item) => <TouchableOpacity key={item.name} style={[styles.categoryChip, { borderColor: item.name === category ? theme.colors.primary : theme.colors.border, backgroundColor: item.name === category ? theme.colors.primary : theme.colors.surface }]} onPress={() => { setCategory(item.name); setError(null); }} accessibilityRole="button" accessibilityState={{ selected: item.name === category }} accessibilityLabel={`Category ${item.name}`}>
+            <View style={styles.categoryGrid}>{categories.map((item) => <TouchableOpacity key={item.name} style={[styles.categoryChip, { borderColor: item.name === category ? theme.colors.primary : theme.colors.border, backgroundColor: item.name === category ? theme.colors.primary : theme.colors.surface }]} onPress={() => { setCategory(item.name); setError(null); }} accessibilityRole="button" accessibilityState={{ selected: item.name === category }} accessibilityLabel={item.accessibilityLabel}>
               <Ionicons name={item.icon} size={18} color={item.name === category ? theme.colors.onPrimary : theme.colors.textSecondary} />
               <Text style={[styles.categoryText, { color: item.name === category ? theme.colors.onPrimary : theme.colors.text }]}>{item.name}</Text>
             </TouchableOpacity>)}</View>

@@ -14,6 +14,7 @@ import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
+import { entryDisplayTitle } from '../utils/entryDisplayTitle';
 import { Skeleton } from '../components/Skeleton';
 import { useDialog } from '../contexts/DialogContext';
 
@@ -83,7 +84,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const deleteEntry = async (item: Transaction) => {
-    if (await dialog.confirm({ title: 'Delete entry', message: `Delete “${item.title}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
+    if (await dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
         setActionId(item.id);
         try { await transactionService.deleteTransaction(item.id); await loadFirstPage(); }
         catch (deleteError) { void dialog.notify({ title: 'Could not delete entry', message: toServiceError(deleteError, 'Could not delete transaction').message }); }
@@ -105,10 +106,10 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const canDelete = (item: Transaction) => item.createdBy === user?.id || isOwner;
   const renderItem = ({ item }: { item: Transaction }) => {
     const editable = item.createdBy === user?.id;
-    const rowTitle = item.description?.trim() || item.category;
+    const rowTitle = entryDisplayTitle(item);
     const showCategoryInSubtitle = rowTitle !== item.category;
-    const row = <TouchableOpacity style={styles.entry} activeOpacity={editable ? 0.7 : 1} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${item.title}` : undefined}>
-      <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category)} size={18} color={theme.colors.textSecondary} /></View>
+    const row = <TouchableOpacity style={styles.entry} activeOpacity={editable ? 0.7 : 1} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
+      <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category, item.type)} size={18} color={theme.colors.textSecondary} /></View>
       <View style={styles.entryBody}>
         <Text style={styles.entryTitle} numberOfLines={1}>{rowTitle}</Text>
         <Text style={styles.entryMeta}>{new Date(item.createdAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}{showCategoryInSubtitle ? ` · ${item.category}` : ''}</Text>
@@ -124,7 +125,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     if (!canDelete(item)) return row;
     return <Swipeable
       overshootRight={false}
-      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} accessibilityRole="button" accessibilityLabel={`Delete ${item.title}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
+      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
     >{row}</Swipeable>;
   };
 

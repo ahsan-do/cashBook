@@ -20,6 +20,7 @@ import { toServiceError } from '../services/serviceErrors';
 import { QuickAddSheet } from '../components/QuickAddSheet';
 import { BalanceAmount } from '../components/BalanceAmount';
 import { categoryIcon } from '../theme/categories';
+import { entryDisplayTitle } from '../utils/entryDisplayTitle';
 import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
 
@@ -114,10 +115,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                   {recent.length > 0 && <View style={styles.recentBlock}>
                     <Text style={styles.recentHeading}>Recent</Text>
-                    {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${transaction.title} in ${book.name}`}>
-                      <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category)} size={16} color={theme.colors.textSecondary} /></View>
+                    {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${entryDisplayTitle(transaction)} in ${book.name}`}>
+                      <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category, transaction.type)} size={16} color={theme.colors.textSecondary} /></View>
                       <View style={styles.recentCopy}>
-                        <Text style={styles.recentTitle} numberOfLines={1}>{transaction.description?.trim() || transaction.category}</Text>
+                        <Text style={styles.recentTitle} numberOfLines={1}>{entryDisplayTitle(transaction)}</Text>
                         <Text style={styles.recentDate}>{formatEntryDate(transaction.entryDate)} · Added by {transaction.createdByName || 'Member'}</Text>
                         {transaction.paidBy && transaction.paidBy !== transaction.createdBy && <Text style={styles.recentDate}>Paid by {transaction.paidByName || 'Former member'}</Text>}
                         {transaction.paidBy && transaction.participants.length > 0 && <Text style={styles.recentSplit}>Split {transaction.participants.length} ways</Text>}
