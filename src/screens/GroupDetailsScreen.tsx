@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -19,10 +19,10 @@ import { Skeleton } from '../components/Skeleton';
 import { useDialog } from '../contexts/DialogContext';
 import { MotionPressable } from '../components/MotionPressable';
 import { MotionReveal } from '../components/MotionReveal';
-import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion } from '../theme/motion';
-import { createPendingIdGuard } from '../utils/pendingIds';
 import Toast from 'react-native-toast-message';
+import { useAnimatedRemoval } from '../hooks/useAnimatedRemoval';
+import { AnimatedRemovalRow } from '../components/AnimatedRemovalRow';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
@@ -33,7 +33,6 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
-  const reducedMotion = useReducedMotion();
   const dialog = useDialog();
   const [book, setBook] = useState<Book | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -47,14 +46,11 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const [error, setError] = useState<string | null>(null);
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>();
-  const [actionId, setActionId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [initialRevealIds, setInitialRevealIds] = useState<string[]>([]);
   const [newlyAddedIds, setNewlyAddedIds] = useState<string[]>([]);
   const hasLoadedRows = useRef(false);
   const transactionsRef = useRef<Transaction[]>([]);
-  const animateNextLayout = useRef(false);
-  const pendingDeletes = useRef(createPendingIdGuard()).current;
+  const removal = useAnimatedRemoval();
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const loadFirstPage = useCallback(async () => {
@@ -80,8 +76,6 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
           setNewlyAddedIds(addedIds);
         }
       }
-      if (animateNextLayout.current && !reducedMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      animateNextLayout.current = false;
       transactionsRef.current = page.transactions;
       setTransactions(page.transactions);
       setCursor(page.nextCursor);
@@ -89,7 +83,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (loadError) {
       setError(toServiceError(loadError, 'Could not load this book').message);
     } finally { setLoading(false); }
-  }, [bookId, user?.id, reducedMotion]);
+  }, [bookId, user?.id]);
 
   useEffect(() => { void loadFirstPage(); }, [loadFirstPage]);
 
@@ -115,18 +109,19 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const deleteEntry = async (item: Transaction) => {
-    if (!pendingDeletes.begin(item.id)) return;
-    const confirmed = await dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true });
-    if (!confirmed) { pendingDeletes.finish(item.id); return; }
-    setDeletingId(item.id);
-    await new Promise((resolve) => setTimeout(resolve, reducedMotion ? 0 : motion.duration.rowDelete));
-    setActionId(item.id);
-    try { await transactionService.deleteTransaction(item.id); animateNextLayout.current = true; await loadFirstPage(); setDeletingId(null); }
-    catch (deleteError) {
-      setDeletingId(null);
-      Toast.show({ type: 'error', text1: 'Could not delete entry', text2: toServiceError(deleteError, 'Could not delete transaction').message });
-    }
-    finally { pendingDeletes.finish(item.id); setActionId(null); }
+    const id = `transaction:${item.id}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: () => dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true }),
+      action: () => transactionService.deleteTransaction(item.id),
+      remove: async () => {
+        const next = transactionsRef.current.filter((transaction) => transaction.id !== item.id);
+        transactionsRef.current = next;
+        setTransactions(next);
+        await loadFirstPage();
+      },
+      onError: (deleteError) => Toast.show({ type: 'error', text1: 'Could not delete entry', text2: toServiceError(deleteError, 'Could not delete transaction').message }),
+    });
   };
 
   const sections: DaySection[] = useMemo(() => {
@@ -144,7 +139,9 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
     const editable = item.createdBy === user?.id;
     const rowTitle = entryDisplayTitle(item);
-    const busy = deletingId === item.id;
+    const id = `transaction:${item.id}`;
+    const busy = removal.pendingIds.has(id);
+    const removalInProgress = removal.pendingIds.size > 0;
     const showCategoryInSubtitle = rowTitle !== item.category;
     const row = <MotionPressable style={styles.entry} onPress={editable && !busy ? () => setEditing(item) : undefined} disabled={busy} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category, item.type)} size={18} color={theme.colors.textSecondary} /></View>
@@ -162,12 +159,13 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     </MotionPressable>;
     const isNew = newlyAddedIds.includes(item.id);
     const revealDelay = initialRevealIds.includes(item.id) && index < 6 ? index * motion.delay.stagger : 0;
-    const animatedSwipeable = <Swipeable
+    const swipeableRow = <Swipeable
       overshootRight={false}
-      enabled={!busy}
-      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
+      enabled={!removalInProgress}
+      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} disabled={removalInProgress} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
     >{row}</Swipeable>;
-    const animatedRow = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay} exit={busy}>{canDelete(item) ? animatedSwipeable : row}</MotionReveal>;
+    const animatedContent = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay}>{canDelete(item) ? swipeableRow : row}</MotionReveal>;
+    const animatedRow = <AnimatedRemovalRow id={id} removing={removal.removingIds.has(id)} onTransitionEnd={removal.onTransitionEnd}>{animatedContent}</AnimatedRemovalRow>;
     if (!canDelete(item)) return animatedRow;
     return animatedRow;
   };

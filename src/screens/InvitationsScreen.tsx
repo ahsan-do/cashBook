@@ -16,20 +16,20 @@ import { PendingInvitation } from '../types';
 import { invitationService } from '../services/invitationService';
 import { toServiceError } from '../services/serviceErrors';
 import { formatEntryDate } from '../utils/dateDisplay';
-import { useDialog } from '../contexts/DialogContext';
 import Toast from 'react-native-toast-message';
+import { useAnimatedRemoval } from '../hooks/useAnimatedRemoval';
+import { AnimatedRemovalRow } from '../components/AnimatedRemovalRow';
 
 interface InvitationsScreenProps { navigation: any; }
 
 export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
-  const dialog = useDialog();
   const styles = React.useMemo(() => makeStyles(theme), [theme]);
+  const removal = useAnimatedRemoval();
   const [invitations, setInvitations] = useState<PendingInvitation[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [actionId, setActionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const fetchInvitations = useCallback(async () => {
@@ -46,28 +46,26 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
   useEffect(() => { void fetchInvitations(); }, [fetchInvitations, user?.id]);
 
   const handleAcceptInvitation = async (invitation: PendingInvitation) => {
-    setActionId(invitation.id);
-    try {
-      await invitationService.acceptInvitation(invitation.id);
-      Toast.show({ type: 'success', text1: 'Success', text2: `You have joined ${invitation.bookName}.` });
-      await fetchInvitations();
-    } catch (actionError) {
-      void dialog.notify({ title: 'Could not accept invitation', message: toServiceError(actionError, 'Could not accept invitation').message });
-    } finally {
-      setActionId(null);
-    }
+    const id = `my-invitation:${invitation.id}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: async () => true,
+      action: async () => { await invitationService.acceptInvitation(invitation.id); },
+      remove: async () => { setInvitations((current) => current.filter((item) => item.id !== invitation.id)); await fetchInvitations(); },
+      onSuccess: () => Toast.show({ type: 'success', text1: 'Success', text2: `You have joined ${invitation.bookName}.` }),
+      onError: (actionError) => Toast.show({ type: 'error', text1: 'Could not accept invitation', text2: toServiceError(actionError, 'Could not accept invitation').message }),
+    });
   };
 
   const handleDeclineInvitation = async (invitation: PendingInvitation) => {
-    setActionId(invitation.id);
-    try {
-      await invitationService.declineInvitation(invitation.id);
-      await fetchInvitations();
-    } catch (actionError) {
-      void dialog.notify({ title: 'Could not decline invitation', message: toServiceError(actionError, 'Could not decline invitation').message });
-    } finally {
-      setActionId(null);
-    }
+    const id = `my-invitation:${invitation.id}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: async () => true,
+      action: () => invitationService.declineInvitation(invitation.id),
+      remove: async () => { setInvitations((current) => current.filter((item) => item.id !== invitation.id)); await fetchInvitations(); },
+      onError: (actionError) => Toast.show({ type: 'error', text1: 'Could not decline invitation', text2: toServiceError(actionError, 'Could not decline invitation').message }),
+    });
   };
 
   const onRefresh = async () => {
@@ -75,8 +73,11 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
     try { await fetchInvitations(); } finally { setRefreshing(false); }
   };
 
-  const renderInvitation = (invitation: PendingInvitation) => (
-    <View key={invitation.id} style={styles.invitationCard}>
+  const renderInvitation = (invitation: PendingInvitation) => {
+    const id = `my-invitation:${invitation.id}`;
+    const pending = removal.pendingIds.has(id);
+    return <AnimatedRemovalRow key={invitation.id} id={id} removing={removal.removingIds.has(id)} onTransitionEnd={removal.onTransitionEnd}>
+    <View style={styles.invitationCard}>
       <View style={styles.invitationHeader}>
         <View style={styles.groupInfo}>
           <Text style={styles.groupName}>{invitation.bookName}</Text>
@@ -86,16 +87,17 @@ export const InvitationsScreen: React.FC<InvitationsScreenProps> = ({ navigation
         <View style={styles.statusBadge}><Text style={styles.statusText}>Pending</Text></View>
       </View>
       <View style={styles.actionButtons}>
-        <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => void handleAcceptInvitation(invitation)} disabled={actionId !== null}>
-          {actionId === invitation.id ? <ActivityIndicator size="small" color={theme.colors.onPrimary} /> : <Ionicons name="checkmark" size={20} color={theme.colors.onPrimary} />}
+        <TouchableOpacity style={[styles.actionButton, styles.acceptButton]} onPress={() => void handleAcceptInvitation(invitation)} disabled={pending || (removal.pendingIds.size > 0 && !pending)}>
+          {pending ? <ActivityIndicator size="small" color={theme.colors.onPrimary} /> : <Ionicons name="checkmark" size={20} color={theme.colors.onPrimary} />}
           <Text style={styles.acceptButtonText}>Accept</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => void handleDeclineInvitation(invitation)} disabled={actionId !== null}>
+        <TouchableOpacity style={[styles.actionButton, styles.declineButton]} onPress={() => void handleDeclineInvitation(invitation)} disabled={pending || (removal.pendingIds.size > 0 && !pending)}>
           <Ionicons name="close" size={20} color={theme.colors.primaryVariant} /><Text style={styles.declineButtonText}>Decline</Text>
         </TouchableOpacity>
       </View>
     </View>
-  );
+    </AnimatedRemovalRow>;
+  };
 
   return (
     <SafeAreaView style={styles.container}>

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,8 +14,9 @@ import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
 import { suggestSettlements } from '../utils/suggestSettlements';
 import { useDialog } from '../contexts/DialogContext';
-import { createPendingIdGuard } from '../utils/pendingIds';
 import Toast from 'react-native-toast-message';
+import { useAnimatedRemoval } from '../hooks/useAnimatedRemoval';
+import { AnimatedRemovalRow } from '../components/AnimatedRemovalRow';
 
 interface Props { navigation: any; route: any; }
 
@@ -39,7 +40,6 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   const [inviteVisible, setInviteVisible] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [saving, setSaving] = useState(false);
-  const [actionId, setActionId] = useState<string | null>(null);
   const [settleVisible, setSettleVisible] = useState(false);
   const [settleTo, setSettleTo] = useState('');
   const [settleAmount, setSettleAmount] = useState('');
@@ -48,7 +48,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   });
   const [settlementSaving, setSettlementSaving] = useState(false);
-  const pendingActions = useRef(createPendingIdGuard()).current;
+  const removal = useAnimatedRemoval();
 
   const isOwner = useMemo(() => members.some((member) => member.userId === user?.id && member.role === 'owner'), [members, user?.id]);
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -107,13 +107,14 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const confirmRemove = async (member: Member) => {
-      const pendingId = `member:${member.userId}`;
-      if (!pendingActions.begin(pendingId)) return;
-      if (!await dialog.confirm({ title: 'Remove member', message: `Remove ${member.displayName || 'this member'} from the book?`, cancelLabel: 'Cancel', confirmLabel: 'Remove', destructive: true })) { pendingActions.finish(pendingId); return; }
-      setActionId(member.userId);
-      try { await invitationService.removeMember(bookId!, member.userId); await load(); }
-      catch (actionError) { Toast.show({ type: 'error', text1: 'Could not remove member', text2: toServiceError(actionError, 'Could not remove member').message }); }
-      finally { pendingActions.finish(pendingId); setActionId(null); }
+    const id = `member:${member.userId}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: () => dialog.confirm({ title: 'Remove member', message: `Remove ${member.displayName || 'this member'} from the book?`, cancelLabel: 'Cancel', confirmLabel: 'Remove', destructive: true }),
+      action: () => invitationService.removeMember(bookId!, member.userId),
+      remove: async () => { setMembers((current) => current.filter((item) => item.userId !== member.userId)); await load(); },
+      onError: (actionError) => Toast.show({ type: 'error', text1: 'Could not remove member', text2: toServiceError(actionError, 'Could not remove member').message }),
+    });
   };
 
   const leaveBook = async () => { if (await dialog.confirm({ title: 'Leave book', message: `Leave “${book?.name ?? initialName ?? 'this book'}”?`, cancelLabel: 'Cancel', confirmLabel: 'Leave', destructive: true })) {
@@ -122,13 +123,14 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   } };
 
   const revokeInvitation = async (invitation: Invitation) => {
-      const pendingId = `invitation:${invitation.id}`;
-      if (!pendingActions.begin(pendingId)) return;
-      if (!await dialog.confirm({ title: 'Revoke invitation', message: `Revoke the invitation for ${invitation.invitedEmail}?`, cancelLabel: 'Cancel', confirmLabel: 'Revoke', destructive: true })) { pendingActions.finish(pendingId); return; }
-      setActionId(invitation.id);
-      try { await invitationService.revokeInvitation(invitation.id); await load(); }
-      catch (actionError) { Toast.show({ type: 'error', text1: 'Could not revoke invitation', text2: toServiceError(actionError, 'Could not revoke invitation').message }); }
-      finally { pendingActions.finish(pendingId); setActionId(null); }
+    const id = `invitation:${invitation.id}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: () => dialog.confirm({ title: 'Revoke invitation', message: `Revoke the invitation for ${invitation.invitedEmail}?`, cancelLabel: 'Cancel', confirmLabel: 'Revoke', destructive: true }),
+      action: () => invitationService.revokeInvitation(invitation.id),
+      remove: async () => { setInvitations((current) => current.filter((item) => item.id !== invitation.id)); await load(); },
+      onError: (actionError) => Toast.show({ type: 'error', text1: 'Could not revoke invitation', text2: toServiceError(actionError, 'Could not revoke invitation').message }),
+    });
   };
 
   const openSettlement = (suggestion?: { fromUser: string; toUser: string; amount: number }) => {
@@ -160,13 +162,14 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const confirmDeleteSettlement = async (settlement: Settlement) => {
-      const pendingId = `settlement:${settlement.id}`;
-      if (!pendingActions.begin(pendingId)) return;
-      if (!await dialog.confirm({ title: 'Delete settlement', message: 'Delete this payment from the shared balance history?', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) { pendingActions.finish(pendingId); return; }
-      setActionId(settlement.id);
-      try { await settlementService.deleteSettlement(settlement.id); await load(); }
-      catch (deleteError) { Toast.show({ type: 'error', text1: 'Could not delete settlement', text2: toServiceError(deleteError, 'Could not delete settlement').message }); }
-      finally { pendingActions.finish(pendingId); setActionId(null); }
+    const id = `settlement:${settlement.id}`;
+    await removal.removeWithConfirmation({
+      id,
+      confirm: () => dialog.confirm({ title: 'Delete settlement', message: 'Delete this payment from the shared balance history?', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true }),
+      action: () => settlementService.deleteSettlement(settlement.id),
+      remove: async () => { setSettlements((current) => current.filter((item) => item.id !== settlement.id)); await load(); },
+      onError: (deleteError) => Toast.show({ type: 'error', text1: 'Could not delete settlement', text2: toServiceError(deleteError, 'Could not delete settlement').message }),
+    });
   };
 
   return <SafeAreaView style={styles.container}>
@@ -182,15 +185,19 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.card}>{members.map((member) => {
             const memberBalance = balanceByUser.get(member.userId);
             const hasBalance = memberBalance === undefined || memberBalance !== 0;
-            return <View key={member.userId} style={styles.row}>
+            const removalId = `member:${member.userId}`;
+            const isPending = removal.pendingIds.has(removalId);
+            return <AnimatedRemovalRow key={member.userId} id={removalId} removing={removal.removingIds.has(removalId)} onTransitionEnd={removal.onTransitionEnd}>
+            <View style={styles.row}>
               <View style={styles.avatar}><Ionicons name="person" size={18} color={theme.colors.primaryVariant} /></View>
               <View style={styles.memberCopy}><Text style={styles.memberName}>{member.displayName || 'Member'}{member.userId === user?.id ? ' (you)' : ''}</Text><Text style={styles.memberRole}>{member.role}</Text>
                 {isOwner && member.userId !== user?.id && hasBalance && <Text style={styles.disabledReason}>{memberBalance === undefined ? 'Balance unavailable; retry before removing.' : 'Settle their balance before removing them.'}</Text>}
               </View>
-              {isOwner && member.userId !== user?.id && <TouchableOpacity style={[styles.rowAction, hasBalance && styles.disabledAction]} onPress={() => confirmRemove(member)} disabled={actionId === member.userId || hasBalance} accessibilityRole="button" accessibilityLabel={`Remove ${member.displayName || 'member'}${hasBalance ? ', disabled because balance is not zero' : ''}`}>
-                {actionId === member.userId ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <Ionicons name="person-remove-outline" size={20} color={hasBalance ? theme.colors.textTertiary : theme.colors.error} />}
+              {isOwner && member.userId !== user?.id && <TouchableOpacity style={[styles.rowAction, hasBalance && styles.disabledAction]} onPress={() => confirmRemove(member)} disabled={isPending || (removal.pendingIds.size > 0 && !isPending) || hasBalance} accessibilityRole="button" accessibilityLabel={`Remove ${member.displayName || 'member'}${hasBalance ? ', disabled because balance is not zero' : ''}`}>
+                {isPending ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <Ionicons name="person-remove-outline" size={20} color={hasBalance ? theme.colors.textTertiary : theme.colors.error} />}
               </TouchableOpacity>}
-            </View>;
+            </View>
+            </AnimatedRemovalRow>;
           })}</View>
           <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Balances</Text><TouchableOpacity style={styles.rowAction} onPress={() => { setBalancesLoading(true); void load(); }} accessibilityRole="button" accessibilityLabel="Refresh balances"><Ionicons name="refresh" size={19} color={theme.colors.primaryVariant} /></TouchableOpacity></View>
           {balancesLoading ? <View style={[styles.card, styles.balanceLoading]}><Skeleton width="72%" height={18} /><Skeleton width="54%" height={18} style={{ marginTop: theme.spacing.md }} /></View>
@@ -224,19 +231,27 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
                 const fromName = members.find((member) => member.userId === settlement.fromUser)?.displayName || 'Former member';
                 const toName = members.find((member) => member.userId === settlement.toUser)?.displayName || 'Former member';
                 const canDelete = settlement.createdBy === user?.id || isOwner;
-                return <View key={settlement.id} style={styles.settlementRow}>
+                const removalId = `settlement:${settlement.id}`;
+                const isPending = removal.pendingIds.has(removalId);
+                return <AnimatedRemovalRow key={settlement.id} id={removalId} removing={removal.removingIds.has(removalId)} onTransitionEnd={removal.onTransitionEnd}>
+                  <View style={styles.settlementRow}>
                   <View style={styles.memberCopy}><Text style={styles.memberName}>{fromName} paid {toName}</Text><Text style={styles.memberRole}>{formatMoney(settlement.amount, currency)} · {formatEntryDate(settlement.entryDate)}</Text></View>
-                  {canDelete && <TouchableOpacity style={styles.rowAction} onPress={() => confirmDeleteSettlement(settlement)} disabled={actionId === settlement.id} accessibilityRole="button" accessibilityLabel="Delete settlement">
-                    {actionId === settlement.id ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <Ionicons name="trash-outline" size={19} color={theme.colors.error} />}
+                  {canDelete && <TouchableOpacity style={styles.rowAction} onPress={() => confirmDeleteSettlement(settlement)} disabled={isPending || (removal.pendingIds.size > 0 && !isPending)} accessibilityRole="button" accessibilityLabel="Delete settlement">
+                    {isPending ? <ActivityIndicator size="small" color={theme.colors.primary} /> : <Ionicons name="trash-outline" size={19} color={theme.colors.error} />}
                   </TouchableOpacity>}
-                </View>;
+                  </View>
+                </AnimatedRemovalRow>;
               })}</View>}
           {isOwner && <>
             <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Invitations</Text><TouchableOpacity style={styles.rowAction} onPress={() => void load()} accessibilityRole="button" accessibilityLabel="Refresh invitations"><Ionicons name="refresh" size={19} color={theme.colors.primaryVariant} /></TouchableOpacity></View>
-            <View style={styles.card}>{invitations.length === 0 ? <Text style={styles.muted}>No pending invitations.</Text> : invitations.map((invitation) => <View key={invitation.id} style={styles.row}>
+            <View style={styles.card}>{invitations.length === 0 ? <Text style={styles.muted}>No pending invitations.</Text> : invitations.map((invitation) => {
+              const removalId = `invitation:${invitation.id}`;
+              const isPending = removal.pendingIds.has(removalId);
+              return <AnimatedRemovalRow key={invitation.id} id={removalId} removing={removal.removingIds.has(removalId)} onTransitionEnd={removal.onTransitionEnd}><View style={styles.row}>
               <View style={styles.memberCopy}><Text style={styles.memberName}>{invitation.invitedEmail}</Text><View style={styles.invitationMeta}><Text style={styles.memberRole}>Expires {formatEntryDate(invitation.expiresAt.slice(0, 10))}</Text><View style={styles.pendingBadge}><Text style={styles.pendingText}>Pending</Text></View></View></View>
-              <TouchableOpacity style={styles.rowAction} onPress={() => revokeInvitation(invitation)} disabled={actionId === invitation.id} accessibilityRole="button" accessibilityLabel={`Revoke invitation for ${invitation.invitedEmail}`}><Text style={styles.revokeText}>{actionId === invitation.id ? '…' : 'Revoke'}</Text></TouchableOpacity>
-            </View>)}</View>
+              <TouchableOpacity style={styles.rowAction} onPress={() => revokeInvitation(invitation)} disabled={isPending || (removal.pendingIds.size > 0 && !isPending)} accessibilityRole="button" accessibilityLabel={`Revoke invitation for ${invitation.invitedEmail}`}><Text style={styles.revokeText}>{isPending ? '…' : 'Revoke'}</Text></TouchableOpacity>
+            </View></AnimatedRemovalRow>;
+            })}</View>
           </>}
           {members.some((member) => member.userId === user?.id) && <>
             <TouchableOpacity style={[styles.leaveButton, (!ownBalanceKnown || ownBalance !== 0) && styles.disabledLeave]} onPress={leaveBook} disabled={!ownBalanceKnown || ownBalance !== 0} accessibilityRole="button" accessibilityLabel={ownBalance !== 0 ? 'Leave book disabled because your balance is not zero' : 'Leave book'}><Ionicons name="exit-outline" size={20} color={!ownBalanceKnown || ownBalance !== 0 ? theme.colors.textTertiary : theme.colors.error} /><Text style={[styles.leaveText, (!ownBalanceKnown || ownBalance !== 0) && styles.disabledButtonText]}>Leave book</Text></TouchableOpacity>
