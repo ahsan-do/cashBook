@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   KeyboardAvoidingView,
   Modal,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,10 +21,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { bookService } from '../services/bookService';
 import { useTheme } from '../contexts/ThemeContext';
 import { transactionService } from '../services/transactionService';
-import { parseMoneyAmount } from '../services/money';
+import { formatAmountInput, parseMoneyAmount } from '../services/money';
 import { toServiceError } from '../services/serviceErrors';
 import { categoriesByType, entryCategory } from '../theme/categories';
 import { formatEntryDate } from '../utils/dateDisplay';
+import { motion } from '../theme/motion';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { MotionPressable } from './MotionPressable';
 
 const RECENT_CATEGORIES_KEY = 'cashbook_recent_categories_by_type';
 const today = () => {
@@ -46,6 +49,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
   const { theme } = useTheme();
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
   const styles = makeStyles(theme);
   const initialBook = useMemo(() => books.find((book) => book.id === defaultBookId) ?? books[0], [books, defaultBookId]);
   const [bookId, setBookId] = useState(initialBook?.id ?? '');
@@ -66,6 +70,18 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
   const [participants, setParticipants] = useState<string[]>([]);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [membersLoading, setMembersLoading] = useState(false);
+  const [saveComplete, setSaveComplete] = useState(false);
+  const amountScale = useRef(new Animated.Value(1)).current;
+  const amountShake = useRef(new Animated.Value(0)).current;
+  const checkmarkProgress = useRef(new Animated.Value(0)).current;
+  const amountHasMounted = useRef(false);
+
+  useEffect(() => {
+    if (!amountHasMounted.current) { amountHasMounted.current = true; return; }
+    if (reducedMotion) { amountScale.setValue(1); return; }
+    amountScale.setValue(1.035);
+    Animated.spring(amountScale, { toValue: 1, ...motion.spring, useNativeDriver: true }).start();
+  }, [amount, amountScale, reducedMotion]);
 
   const shareMemberOptions = useMemo(() => {
     const options = new Map<string, { userId: string; displayName: string; currentMember: boolean }>();
@@ -99,6 +115,8 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
     setParticipants(editingTransaction?.participants.map((participant) => participant.userId) ?? []);
     setDatePickerVisible(false);
     setError(null);
+    setSaveComplete(false);
+    checkmarkProgress.setValue(0);
     void AsyncStorage.getItem(RECENT_CATEGORIES_KEY).then((raw) => {
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -112,7 +130,7 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
         if (!editingTransaction && next.cash_out.length) setCategory(next.cash_out[0]);
       }
     }).catch(() => setRecentCategoriesByType({ cash_in: [], cash_out: [] }));
-  }, [visible, initialBook, user?.id, editingTransaction]);
+  }, [visible, initialBook, user?.id, editingTransaction, checkmarkProgress]);
 
   useEffect(() => {
     if (!visible || !bookId) return;
@@ -225,8 +243,15 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
       setRecentCategoriesByType(updatedCategoriesByType);
       try { await AsyncStorage.setItem(RECENT_CATEGORIES_KEY, JSON.stringify(updatedCategoriesByType)); } catch { /* Recent categories are a convenience, not part of the transaction save. */ }
       try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { /* Haptics may be unavailable on some devices. */ }
-      onClose();
       void onSaved();
+      setSaveComplete(true);
+      if (reducedMotion) {
+        onClose();
+      } else {
+        Animated.timing(checkmarkProgress, { toValue: 1, duration: motion.duration.reveal, easing: motion.easing.standard, useNativeDriver: true }).start(() => {
+          setTimeout(onClose, motion.duration.closeAfterSave);
+        });
+      }
     } catch (saveError) {
       setError(toServiceError(saveError, 'Could not save transaction').message);
     } finally {
@@ -236,17 +261,18 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
 
   const pressKey = (key: string) => {
     setError(null);
-    if (key === 'backspace') { setAmount((value) => value.slice(0, -1)); return; }
-    if (key === '.') {
-      setAmount((value) => value.includes('.') ? value : `${value || '0'}.`);
-      return;
+    const candidate = key === 'backspace' ? amount.slice(0, -1) : `${amount}${key}`;
+    const formatted = formatAmountInput(candidate, books.find((book) => book.id === bookId)?.currencyCode ?? 'PKR');
+    if (formatted.ignoredInput) {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      if (!reducedMotion) Animated.sequence([
+        Animated.timing(amountShake, { toValue: 1, duration: motion.duration.quick / 3, useNativeDriver: true }),
+        Animated.timing(amountShake, { toValue: -1, duration: motion.duration.quick / 3, useNativeDriver: true }),
+        Animated.timing(amountShake, { toValue: 0, duration: motion.duration.quick / 3, useNativeDriver: true }),
+      ]).start();
     }
-    setAmount((value) => {
-      const [whole, fraction] = value.split('.');
-      if (value.includes('.') && fraction.length >= 2) return value;
-      if (!value.includes('.') && whole.length >= 12) return value;
-      return `${value}${key}`;
-    });
+    setAmount(formatted.raw);
+    void Haptics.selectionAsync().catch(() => undefined);
   };
 
   const shiftDate = (offset: number) => {
@@ -255,9 +281,11 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
     setEntryDate(date.toISOString().slice(0, 10));
   };
   const selectedDateLabel = formatEntryDate(entryDate);
+  const currencyCode = books.find((book) => book.id === bookId)?.currencyCode ?? '';
+  const formattedAmount = formatAmountInput(amount, currencyCode || 'PKR');
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType={reducedMotion ? 'none' : 'slide'} onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <TouchableOpacity style={styles.scrim} activeOpacity={1} onPress={onClose} accessibilityLabel="Close quick add" />
         <View style={[styles.sheet, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.lg, insets.bottom + theme.spacing.md) }]}>
@@ -274,10 +302,10 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
               </ScrollView>
             </>}
             <View style={styles.amountArea} accessibilityLabel="Transaction amount">
-              <View style={styles.amountReadout}>
-                <Text style={[styles.amountText, { color: theme.colors.text }]}>{amount || '0'}</Text>
+              <Animated.View style={[styles.amountReadout, { transform: [{ scale: amountScale }, { translateX: amountShake.interpolate({ inputRange: [-1, 1], outputRange: [-7, 7] }) }] }]} accessible accessibilityRole="text" accessibilityLabel={`${formattedAmount.display} ${currencyCode}`}>
+                <Text style={[styles.amountText, { color: theme.colors.text }]} numberOfLines={1} adjustsFontSizeToFit>{formattedAmount.display}</Text>
                 <Text style={[styles.amountCurrency, { color: theme.colors.textTertiary }]}>{books.find((book) => book.id === bookId)?.currencyCode ?? ''}</Text>
-              </View>
+              </Animated.View>
               <Text style={[styles.amountHint, { color: theme.colors.textTertiary }]}>Amount</Text>
             </View>
             <View style={[styles.typeToggle, { backgroundColor: theme.colors.surfaceVariant }]}>
@@ -337,13 +365,13 @@ export const QuickAddSheet: React.FC<QuickAddSheetProps> = ({ visible, books, de
             {!!error && <Text style={[styles.error, { color: theme.colors.error }]} accessibilityRole="alert">{error}</Text>}
             {!!memberError && <Text style={[styles.error, { color: theme.colors.error }]} accessibilityRole="alert">{memberError}</Text>}
             <View style={styles.keypad}>
-              {['1','2','3','4','5','6','7','8','9','.','0','backspace'].map((key) => <Pressable key={key} style={({ pressed }) => [styles.key, { backgroundColor: pressed ? theme.colors.surfaceVariant : theme.colors.surface }]} onPress={() => pressKey(key)} accessibilityRole="button" accessibilityLabel={key === 'backspace' ? 'Delete last amount digit' : key === '.' ? 'Decimal point' : `Digit ${key}`}>
+              {['1','2','3','4','5','6','7','8','9','.','0','backspace'].map((key) => <MotionPressable key={key} style={({ pressed }) => [styles.key, { backgroundColor: pressed ? theme.colors.surfaceVariant : theme.colors.surface }]} onPress={() => pressKey(key)} accessibilityRole="button" accessibilityLabel={key === 'backspace' ? 'Delete last amount digit' : key === '.' ? 'Decimal point' : `Digit ${key}`}>
                 {key === 'backspace' ? <Ionicons name="backspace-outline" size={23} color={theme.colors.text} /> : <Text style={[styles.keyText, { color: theme.colors.text }]}>{key}</Text>}
-              </Pressable>)}
+              </MotionPressable>)}
             </View>
-            <TouchableOpacity style={[styles.saveButton, { backgroundColor: theme.colors.primary, opacity: saving || membersLoading ? 0.7 : 1 }]} onPress={() => void save()} disabled={saving || membersLoading} accessibilityRole="button" accessibilityLabel="Save transaction">
-              {saving || membersLoading ? <ActivityIndicator color={theme.colors.onPrimary} /> : <Text style={[styles.saveText, { color: theme.colors.onPrimary }]}>{editingTransaction ? 'Save changes' : 'Save'}</Text>}
-            </TouchableOpacity>
+            <MotionPressable style={[styles.saveButton, { backgroundColor: theme.colors.primary, opacity: saving || membersLoading ? 0.7 : 1 }]} onPress={() => void save()} disabled={saving || membersLoading || saveComplete} accessibilityRole="button" accessibilityLabel={saveComplete ? 'Saved' : 'Save transaction'}>
+              {saving || membersLoading ? <ActivityIndicator color={theme.colors.onPrimary} /> : saveComplete ? <Animated.View style={{ opacity: checkmarkProgress, transform: [{ scale: checkmarkProgress.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] }}><Ionicons name="checkmark-circle" size={26} color={theme.colors.onPrimary} /></Animated.View> : <Text style={[styles.saveText, { color: theme.colors.onPrimary }]}>{editingTransaction ? 'Save changes' : 'Save'}</Text>}
+            </MotionPressable>
           </ScrollView>
         </View>
       </KeyboardAvoidingView>
@@ -396,7 +424,7 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   noteToggle: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
   noteToggleText: { fontSize: theme.typeSize.small, fontWeight: '600' },
   keypad: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, justifyContent: 'center', paddingTop: theme.spacing.xs },
-  key: { width: '30%', minHeight: 48, borderRadius: theme.radius.md, alignItems: 'center', justifyContent: 'center' },
+  key: { width: '30%', height: 56, minHeight: 56, borderRadius: theme.radius.md, alignItems: 'center', justifyContent: 'center' },
   keyText: { fontSize: theme.typeSize.subtitle, fontWeight: '600' },
   error: { fontSize: theme.typeSize.small },
   saveButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.md, marginTop: theme.spacing.xs },

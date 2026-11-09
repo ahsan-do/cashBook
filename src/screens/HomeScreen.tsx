@@ -23,6 +23,9 @@ import { categoryIcon } from '../theme/categories';
 import { entryDisplayTitle } from '../utils/entryDisplayTitle';
 import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
+import { MotionPressable } from '../components/MotionPressable';
+import { MotionReveal } from '../components/MotionReveal';
+import { motion } from '../theme/motion';
 
 interface HomeScreenProps { navigation: any; }
 type BookOverview = { book: Book; cashIn: number; cashOut: number; balance: number; recent: Transaction[] };
@@ -103,19 +106,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
               <View style={styles.emptyIcon}><Ionicons name="wallet-outline" size={34} color={theme.colors.primaryVariant} /></View>
               <Text style={styles.emptyTitle}>Start your first cash book</Text>
               <Text style={styles.emptyCopy}>Keep cash in and cash out together, with a clear running balance.</Text>
-              <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate('CreateGroup')} accessibilityRole="button"><Text style={styles.primaryButtonText}>Create your first book</Text></TouchableOpacity>
+              <MotionPressable style={styles.primaryButton} onPress={() => navigation.navigate('CreateGroup')} accessibilityRole="button"><Text style={styles.primaryButtonText}>Create your first book</Text></MotionPressable>
             </View>
-              : <View style={styles.bookList}>{overviews.map(({ book, cashIn, cashOut, balance, recent }) => (
-                <View key={book.id} style={styles.bookCard}>
-                  <TouchableOpacity onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${book.name}`}>
+              : <View style={styles.bookList}>{overviews.map(({ book, cashIn, cashOut, balance, recent }, bookIndex) => (
+                <MotionReveal key={book.id} delay={bookIndex < 6 ? bookIndex * motion.delay.stagger : 0}>
+                <MotionPressable style={styles.bookCard} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${book.name}`}>
                     <View style={styles.bookTop}><Text style={styles.bookName} numberOfLines={1}>{book.name}</Text><Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /></View>
                     <Text style={styles.balanceLabel}>Net balance</Text>
                     <BalanceAmount compact amount={balance} currencyCode={book.currencyCode} />
                     <Text style={styles.flowLine}><Text style={{ color: theme.colors.success }}>In {formatMoney(cashIn, book.currencyCode)}</Text><Text style={{ color: theme.colors.textTertiary }}>  ·  </Text><Text style={{ color: theme.colors.error }}>Out {formatMoney(cashOut, book.currencyCode)}</Text></Text>
-                  </TouchableOpacity>
                   {recent.length > 0 && <View style={styles.recentBlock}>
                     <Text style={styles.recentHeading}>Recent</Text>
-                    {recent.map((transaction) => <TouchableOpacity key={transaction.id} style={styles.recentRow} onPress={() => openBook(book)} accessibilityRole="button" accessibilityLabel={`Open ${entryDisplayTitle(transaction)} in ${book.name}`}>
+                    {recent.map((transaction) => <View key={transaction.id} style={styles.recentRow}>
                       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(transaction.category, transaction.type)} size={16} color={theme.colors.textSecondary} /></View>
                       <View style={styles.recentCopy}>
                         <Text style={styles.recentTitle} numberOfLines={1}>{entryDisplayTitle(transaction)}</Text>
@@ -124,15 +126,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                         {transaction.paidBy && transaction.participants.length > 0 && <Text style={styles.recentSplit}>Split {transaction.participants.length} ways</Text>}
                       </View>
                       <View style={styles.recentValue}><Ionicons name={transaction.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={14} color={transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.recentAmount, { color: transaction.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{transaction.type === 'cash_in' ? '+' : '−'}{formatMoney(transaction.amount, book.currencyCode)}</Text></View>
-                    </TouchableOpacity>)}
+                    </View>)}
                   </View>}
-                </View>
+                </MotionPressable>
+                </MotionReveal>
               ))}</View>}
         {overviews.length > 0 && <TouchableOpacity style={styles.seeAll} onPress={() => navigation.navigate('Groups')} accessibilityRole="button"><Text style={styles.seeAllText}>All books</Text><Ionicons name="arrow-forward" size={16} color={theme.colors.primaryVariant} /></TouchableOpacity>}
       </ScrollView>
-      {overviews.length > 0 && !loading && <TouchableOpacity style={styles.fab} onPress={() => setQuickAddVisible(true)} accessibilityRole="button" accessibilityLabel="Add a transaction">
+      {overviews.length > 0 && !loading && <MotionPressable style={styles.fab} onPress={() => setQuickAddVisible(true)} accessibilityRole="button" accessibilityLabel="Add a transaction">
         <Ionicons name="add" size={28} color={theme.colors.onPrimary} />
-      </TouchableOpacity>}
+      </MotionPressable>}
       <QuickAddSheet visible={quickAddVisible} books={books} onClose={() => setQuickAddVisible(false)} onSaved={loadHome} />
     </SafeAreaView>
   );

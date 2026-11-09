@@ -1,7 +1,8 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
+  LayoutAnimation,
   Text,
   FlatList,
   TouchableOpacity,
@@ -20,6 +21,10 @@ import { Book, Member } from '../types';
 import { bookService } from '../services/bookService';
 import { Skeleton } from '../components/Skeleton';
 import { useDialog } from '../contexts/DialogContext';
+import { MotionPressable } from '../components/MotionPressable';
+import { MotionReveal } from '../components/MotionReveal';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { motion } from '../theme/motion';
 
 interface GroupsScreenProps {
   navigation: any;
@@ -29,6 +34,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   const { user } = useAuth();
   const { theme } = useTheme();
   const dialog = useDialog();
+  const reducedMotion = useReducedMotion();
+  const animateBookLayout = useRef(false);
   const insets = useSafeAreaInsets();
   const [books, setBooks] = useState<Book[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,13 +68,16 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
     setLoadError(null);
     setMembersCache({});
     try {
-      setBooks(await bookService.listMyBooks(user.id));
+      const nextBooks = await bookService.listMyBooks(user.id);
+      if (animateBookLayout.current && !reducedMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateBookLayout.current = false;
+      setBooks(nextBooks);
     } catch (error: any) {
       setLoadError(error?.message || 'Could not load your books. Please try again.');
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [user]);
+  }, [user, reducedMotion]);
 
   // Refresh books when the screen comes into focus.
   useFocusEffect(
@@ -135,6 +145,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
 
     try {
       await bookService.softDeleteBook(deletingBook.id);
+      animateBookLayout.current = true;
       
       Toast.show({
         type: 'success',
@@ -177,8 +188,9 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
     navigation.navigate('GroupDetails', { bookId: book.id, name: book.name });
   };
 
-  const renderBookItem = ({ item }: { item: Book }) => (
-    <TouchableOpacity
+  const renderBookItem = ({ item, index }: { item: Book; index: number }) => (
+    <MotionReveal delay={index < 6 ? index * motion.delay.stagger : 0}>
+    <MotionPressable
       style={[
         styles.groupItem,
         {
@@ -217,7 +229,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         </View>
       </View>
       <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-    </TouchableOpacity>
+    </MotionPressable>
+    </MotionReveal>
   );
 
   return (

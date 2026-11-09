@@ -3,6 +3,7 @@ import { Animated, BackHandler, Modal, Pressable, StyleSheet, Text, View } from 
 import * as Haptics from 'expo-haptics';
 import { useTheme } from './ThemeContext';
 import { createDialogQueue } from '../utils/dialogQueue';
+import { motion } from '../theme/motion';
 
 type Action = { label: string; destructive?: boolean; value: string };
 type DialogRequest = { title: string; message: string; kind: 'confirm' | 'notify' | 'choose'; confirmLabel?: string; cancelLabel?: string; destructive?: boolean; actions?: Action[]; selectedValue?: string };
@@ -34,7 +35,7 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({ children }) 
     if (!active) { setVisible(false); return; }
     setVisible(true);
     opacity.setValue(0); scale.setValue(0.96);
-    Animated.parallel([Animated.timing(opacity, { toValue: 1, duration: 170, useNativeDriver: true }), Animated.spring(scale, { toValue: 1, speed: 22, bounciness: 3, useNativeDriver: true })]).start();
+    Animated.parallel([Animated.timing(opacity, { toValue: 1, duration: motion.duration.dialogEnter, useNativeDriver: true }), Animated.spring(scale, { toValue: 1, ...motion.spring, useNativeDriver: true })]).start();
   }, [active, opacity, scale]);
 
   const finish = useCallback((accepted: boolean, choice?: string) => {
@@ -44,7 +45,7 @@ export const DialogProvider: React.FC<React.PropsWithChildren> = ({ children }) 
       if (accepted && active.destructive) void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
       queue.current?.settle(choice ? true : accepted);
     };
-    Animated.parallel([Animated.timing(opacity, { toValue: 0, duration: 110, useNativeDriver: true }), Animated.timing(scale, { toValue: 0.97, duration: 110, useNativeDriver: true })]).start(settle);
+    Animated.parallel([Animated.timing(opacity, { toValue: 0, duration: motion.duration.dialogExit, useNativeDriver: true }), Animated.timing(scale, { toValue: 0.97, duration: motion.duration.dialogExit, useNativeDriver: true })]).start(settle);
   }, [active, opacity, scale]);
 
   useEffect(() => {

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { motion } from '../theme/motion';
 
 interface SkeletonProps {
   width: number | `${number}%`;
@@ -12,13 +14,15 @@ interface SkeletonProps {
 export const Skeleton: React.FC<SkeletonProps> = ({ width, height, radius = 8, style }) => {
   const { theme } = useTheme();
   const animation = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useReducedMotion();
   const [measuredWidth, setMeasuredWidth] = useState(typeof width === 'number' ? width : 120);
 
   useEffect(() => {
-    const loop = Animated.loop(Animated.timing(animation, { toValue: 1, duration: 1100, useNativeDriver: true }));
+    if (reducedMotion) { animation.setValue(0); return; }
+    const loop = Animated.loop(Animated.timing(animation, { toValue: 1, duration: motion.duration.shimmer, useNativeDriver: true }));
     loop.start();
     return () => loop.stop();
-  }, [animation]);
+  }, [animation, reducedMotion]);
 
   const translateX = animation.interpolate({
     inputRange: [0, 1],

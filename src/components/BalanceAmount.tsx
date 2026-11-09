@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { formatMoney, parseMoneyAmount } from '../services/money';
+import { formatMoney, formatMoneyParts, parseMoneyAmount } from '../services/money';
+import { motion } from '../theme/motion';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface BalanceAmountProps {
   amount: number | string;
@@ -12,14 +14,32 @@ interface BalanceAmountProps {
 
 export const BalanceAmount: React.FC<BalanceAmountProps> = ({ amount, currencyCode, compact = false, accessibilityLabel }) => {
   const { theme } = useTheme();
+  const reducedMotion = useReducedMotion();
+  const target = parseMoneyAmount(amount);
+  const [displayAmount, setDisplayAmount] = useState(target);
+  const previousAmount = useRef(target);
+  const firstUpdate = useRef(true);
+  useEffect(() => {
+    const from = previousAmount.current;
+    previousAmount.current = target;
+    if (firstUpdate.current) { firstUpdate.current = false; return; }
+    if (reducedMotion || from === target) { setDisplayAmount(target); return; }
+    let startTime: number | null = null;
+    let frame = 0;
+    const step = (now: number) => {
+      if (startTime === null) startTime = now;
+      const progress = Math.min(1, (now - startTime) / motion.duration.balance);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayAmount(from + (target - from) * eased);
+      if (progress < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [target, reducedMotion]);
   const parts = useMemo(() => {
-    const value = parseMoneyAmount(amount);
-    const absolute = Math.abs(value);
-    const formatted = new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode.trim().toUpperCase() }).formatToParts(absolute);
-    const major = formatted.filter((part) => part.type === 'integer' || part.type === 'group').map((part) => part.value).join('');
-    const minor = formatted.filter((part) => part.type === 'fraction').map((part) => part.value).join('');
-    return { major: `${value < 0 ? '−' : ''}${major}`, minor };
-  }, [amount, currencyCode]);
+    const formatted = formatMoneyParts(displayAmount, currencyCode);
+    return { major: `${formatted.negative ? '−' : ''}${formatted.major}`, minor: formatted.minor };
+  }, [displayAmount, currencyCode]);
   const styles = useMemo(() => makeStyles(theme, compact), [theme, compact]);
 
   return <View style={styles.container} accessible accessibilityRole="text" accessibilityLabel={accessibilityLabel ?? `${formatMoney(amount, currencyCode)} ${currencyCode}`}>

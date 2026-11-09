@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutAnimation, RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -17,6 +17,10 @@ import { formatEntryDate } from '../utils/dateDisplay';
 import { entryDisplayTitle } from '../utils/entryDisplayTitle';
 import { Skeleton } from '../components/Skeleton';
 import { useDialog } from '../contexts/DialogContext';
+import { MotionPressable } from '../components/MotionPressable';
+import { MotionReveal } from '../components/MotionReveal';
+import { useReducedMotion } from '../hooks/useReducedMotion';
+import { motion } from '../theme/motion';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
@@ -27,6 +31,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const initialName: string | undefined = route.params?.name;
   const { user } = useAuth();
   const { theme } = useTheme();
+  const reducedMotion = useReducedMotion();
   const dialog = useDialog();
   const [book, setBook] = useState<Book | null>(null);
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -41,6 +46,12 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [editing, setEditing] = useState<Transaction | undefined>();
   const [actionId, setActionId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [initialRevealIds, setInitialRevealIds] = useState<string[]>([]);
+  const [newlyAddedIds, setNewlyAddedIds] = useState<string[]>([]);
+  const hasLoadedRows = useRef(false);
+  const transactionsRef = useRef<Transaction[]>([]);
+  const animateNextLayout = useRef(false);
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const loadFirstPage = useCallback(async () => {
@@ -56,13 +67,26 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       setBook(bookInfo);
       setTotals(bookTotals);
       setIsOwner(members.some((member: Member) => member.userId === user?.id && member.role === 'owner'));
+      if (!hasLoadedRows.current) {
+        setInitialRevealIds(page.transactions.slice(0, 6).map((row) => row.id));
+        hasLoadedRows.current = true;
+      } else {
+        const priorIds = new Set(transactionsRef.current.map((row) => row.id));
+        const addedIds = page.transactions.filter((row) => !priorIds.has(row.id)).map((row) => row.id);
+        if (addedIds.length) {
+          setNewlyAddedIds(addedIds);
+        }
+      }
+      if (animateNextLayout.current && !reducedMotion) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      animateNextLayout.current = false;
+      transactionsRef.current = page.transactions;
       setTransactions(page.transactions);
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
     } catch (loadError) {
       setError(toServiceError(loadError, 'Could not load this book').message);
     } finally { setLoading(false); }
-  }, [bookId, user?.id]);
+  }, [bookId, user?.id, reducedMotion]);
 
   useEffect(() => { void loadFirstPage(); }, [loadFirstPage]);
 
@@ -76,7 +100,11 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     setLoadingMore(true);
     try {
       const page = await transactionService.pageTransactions({ bookId, pageSize: 30, cursor });
-      setTransactions((current) => [...current, ...page.transactions]);
+      setTransactions((current) => {
+        const next = [...current, ...page.transactions];
+        transactionsRef.current = next;
+        return next;
+      });
       setCursor(page.nextCursor);
       setHasMore(page.nextCursor !== null);
     } catch (loadError) { void dialog.notify({ title: 'Could not load more entries', message: toServiceError(loadError, 'Could not load transactions').message }); }
@@ -85,9 +113,11 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const deleteEntry = async (item: Transaction) => {
     if (await dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
+        setDeletingId(item.id);
+        await new Promise((resolve) => setTimeout(resolve, reducedMotion ? 0 : motion.duration.rowDelete));
         setActionId(item.id);
-        try { await transactionService.deleteTransaction(item.id); await loadFirstPage(); }
-        catch (deleteError) { void dialog.notify({ title: 'Could not delete entry', message: toServiceError(deleteError, 'Could not delete transaction').message }); }
+        try { await transactionService.deleteTransaction(item.id); animateNextLayout.current = true; await loadFirstPage(); setDeletingId(null); }
+        catch (deleteError) { setDeletingId(null); void dialog.notify({ title: 'Could not delete entry', message: toServiceError(deleteError, 'Could not delete transaction').message }); }
         finally { setActionId(null); }
     }
   };
@@ -104,11 +134,11 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const currency = book?.currencyCode ?? 'PKR';
   const canDelete = (item: Transaction) => item.createdBy === user?.id || isOwner;
-  const renderItem = ({ item }: { item: Transaction }) => {
+  const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
     const editable = item.createdBy === user?.id;
     const rowTitle = entryDisplayTitle(item);
     const showCategoryInSubtitle = rowTitle !== item.category;
-    const row = <TouchableOpacity style={styles.entry} activeOpacity={editable ? 0.7 : 1} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
+    const row = <MotionPressable style={styles.entry} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category, item.type)} size={18} color={theme.colors.textSecondary} /></View>
       <View style={styles.entryBody}>
         <Text style={styles.entryTitle} numberOfLines={1}>{rowTitle}</Text>
@@ -121,12 +151,15 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.signedAmount}><Ionicons name={item.type === 'cash_in' ? 'arrow-down-circle-outline' : 'arrow-up-circle-outline'} size={15} color={item.type === 'cash_in' ? theme.colors.success : theme.colors.error} /><Text style={[styles.entryAmount, { color: item.type === 'cash_in' ? theme.colors.success : theme.colors.error }]}>{item.type === 'cash_in' ? '+' : '−'}{formatMoney(item.amount, currency)}</Text></View>
         <Text style={styles.runningBalance}>{item.runningBalance == null ? '—' : formatMoney(item.runningBalance, currency)}</Text>
       </View>
-    </TouchableOpacity>;
-    if (!canDelete(item)) return row;
+    </MotionPressable>;
+    const isNew = newlyAddedIds.includes(item.id);
+    const revealDelay = initialRevealIds.includes(item.id) && index < 6 ? index * motion.delay.stagger : 0;
+    const animatedRow = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay} exit={deletingId === item.id}>{row}</MotionReveal>;
+    if (!canDelete(item)) return animatedRow;
     return <Swipeable
       overshootRight={false}
       renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
-    >{row}</Swipeable>;
+    >{animatedRow}</Swipeable>;
   };
 
   return <SafeAreaView style={styles.container}>
@@ -170,7 +203,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
           ListFooterComponent={loadingMore ? <View style={styles.loadingFooter}>{[0, 1].map((row) => <View key={row} style={styles.entry}><Skeleton width={40} height={40} radius={20} /><View style={styles.entryBody}><Skeleton width="78%" height={15} /><Skeleton width="56%" height={11} style={{ marginTop: theme.spacing.sm }} /></View><View style={styles.entryAmounts}><Skeleton width={80} height={14} /><Skeleton width={70} height={11} style={{ marginTop: theme.spacing.sm }} /></View></View>)}</View> : null}
         />}
 
-    {!loading && <TouchableOpacity style={styles.fab} onPress={() => { setEditing(undefined); setQuickAddVisible(true); }} accessibilityRole="button" accessibilityLabel="Add a transaction"><Ionicons name="add" size={28} color={theme.colors.onPrimary} /></TouchableOpacity>}
+    {!loading && <MotionPressable style={styles.fab} onPress={() => { setEditing(undefined); setQuickAddVisible(true); }} accessibilityRole="button" accessibilityLabel="Add a transaction"><Ionicons name="add" size={28} color={theme.colors.onPrimary} /></MotionPressable>}
     <QuickAddSheet visible={quickAddVisible || Boolean(editing)} books={book ? [book] : []} defaultBookId={bookId} editingTransaction={editing} onClose={() => { setQuickAddVisible(false); setEditing(undefined); }} onSaved={loadFirstPage} />
   </SafeAreaView>;
 };

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Currency, CurrencyInfo, CurrencyContextType } from '../types';
+import { formatMoney } from '../services/money';
 
 const CurrencyContext = createContext<CurrencyContextType | undefined>(undefined);
 
@@ -39,27 +40,7 @@ export const CurrencyProvider: React.FC<CurrencyProviderProps> = ({ children }) 
   const formatAmount = (amount: number): string => {
     const currency = currencies.find(c => c.code === selectedCurrency);
     if (!currency) return `${amount.toFixed(2)}`;
-
-    // Format based on currency
-    switch (selectedCurrency) {
-      case 'PKR':
-        return `${currency.symbol}${amount.toLocaleString('en-PK', { 
-          minimumFractionDigits: 0, 
-          maximumFractionDigits: 0 
-        })}`;
-      case 'USD':
-        return `${currency.symbol}${amount.toLocaleString('en-US', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
-        })}`;
-      case 'EUR':
-        return `${currency.symbol}${amount.toLocaleString('de-DE', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
-        })}`;
-      default:
-        return `${currency.symbol}${amount.toFixed(2)}`;
-    }
+    return formatMoney(amount, selectedCurrency);
   };
 
   const convertAmount = (amount: number, fromCurrency: Currency, toCurrency: Currency): number => {
@@ -94,4 +75,4 @@ export const useCurrency = (): CurrencyContextType => {
     throw new Error('useCurrency must be used within a CurrencyProvider');
   }
   return context;
-}; 
+};
