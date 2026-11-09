@@ -21,6 +21,8 @@ import { MotionPressable } from '../components/MotionPressable';
 import { MotionReveal } from '../components/MotionReveal';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion } from '../theme/motion';
+import { createPendingIdGuard } from '../utils/pendingIds';
+import Toast from 'react-native-toast-message';
 
 interface Props { navigation: any; route: any; }
 interface DaySection { date: string; data: Transaction[]; }
@@ -52,6 +54,7 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const hasLoadedRows = useRef(false);
   const transactionsRef = useRef<Transaction[]>([]);
   const animateNextLayout = useRef(false);
+  const pendingDeletes = useRef(createPendingIdGuard()).current;
   const styles = useMemo(() => makeStyles(theme), [theme]);
 
   const loadFirstPage = useCallback(async () => {
@@ -112,14 +115,18 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const deleteEntry = async (item: Transaction) => {
-    if (await dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
-        setDeletingId(item.id);
-        await new Promise((resolve) => setTimeout(resolve, reducedMotion ? 0 : motion.duration.rowDelete));
-        setActionId(item.id);
-        try { await transactionService.deleteTransaction(item.id); animateNextLayout.current = true; await loadFirstPage(); setDeletingId(null); }
-        catch (deleteError) { setDeletingId(null); void dialog.notify({ title: 'Could not delete entry', message: toServiceError(deleteError, 'Could not delete transaction').message }); }
-        finally { setActionId(null); }
+    if (!pendingDeletes.begin(item.id)) return;
+    const confirmed = await dialog.confirm({ title: 'Delete entry', message: `Delete “${entryDisplayTitle(item)}”?`, cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true });
+    if (!confirmed) { pendingDeletes.finish(item.id); return; }
+    setDeletingId(item.id);
+    await new Promise((resolve) => setTimeout(resolve, reducedMotion ? 0 : motion.duration.rowDelete));
+    setActionId(item.id);
+    try { await transactionService.deleteTransaction(item.id); animateNextLayout.current = true; await loadFirstPage(); setDeletingId(null); }
+    catch (deleteError) {
+      setDeletingId(null);
+      Toast.show({ type: 'error', text1: 'Could not delete entry', text2: toServiceError(deleteError, 'Could not delete transaction').message });
     }
+    finally { pendingDeletes.finish(item.id); setActionId(null); }
   };
 
   const sections: DaySection[] = useMemo(() => {
@@ -137,8 +144,9 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
   const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
     const editable = item.createdBy === user?.id;
     const rowTitle = entryDisplayTitle(item);
+    const busy = deletingId === item.id;
     const showCategoryInSubtitle = rowTitle !== item.category;
-    const row = <MotionPressable style={styles.entry} onPress={editable ? () => setEditing(item) : undefined} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
+    const row = <MotionPressable style={styles.entry} onPress={editable && !busy ? () => setEditing(item) : undefined} disabled={busy} accessibilityRole={editable ? 'button' : undefined} accessibilityLabel={editable ? `Edit ${rowTitle}` : undefined}>
       <View style={styles.categoryIcon}><Ionicons name={categoryIcon(item.category, item.type)} size={18} color={theme.colors.textSecondary} /></View>
       <View style={styles.entryBody}>
         <Text style={styles.entryTitle} numberOfLines={1}>{rowTitle}</Text>
@@ -154,12 +162,14 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
     </MotionPressable>;
     const isNew = newlyAddedIds.includes(item.id);
     const revealDelay = initialRevealIds.includes(item.id) && index < 6 ? index * motion.delay.stagger : 0;
-    const animatedRow = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay} exit={deletingId === item.id}>{row}</MotionReveal>;
-    if (!canDelete(item)) return animatedRow;
-    return <Swipeable
+    const animatedSwipeable = <Swipeable
       overshootRight={false}
-      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
-    >{animatedRow}</Swipeable>;
+      enabled={!busy}
+      renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} disabled={busy} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
+    >{row}</Swipeable>;
+    const animatedRow = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay} exit={busy}>{canDelete(item) ? animatedSwipeable : row}</MotionReveal>;
+    if (!canDelete(item)) return animatedRow;
+    return animatedRow;
   };
 
   return <SafeAreaView style={styles.container}>

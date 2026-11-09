@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +14,8 @@ import { formatEntryDate } from '../utils/dateDisplay';
 import { Skeleton } from '../components/Skeleton';
 import { suggestSettlements } from '../utils/suggestSettlements';
 import { useDialog } from '../contexts/DialogContext';
+import { createPendingIdGuard } from '../utils/pendingIds';
+import Toast from 'react-native-toast-message';
 
 interface Props { navigation: any; route: any; }
 
@@ -46,6 +48,7 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   });
   const [settlementSaving, setSettlementSaving] = useState(false);
+  const pendingActions = useRef(createPendingIdGuard()).current;
 
   const isOwner = useMemo(() => members.some((member) => member.userId === user?.id && member.role === 'owner'), [members, user?.id]);
   const styles = useMemo(() => makeStyles(theme), [theme]);
@@ -103,24 +106,30 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     } finally { setSaving(false); }
   };
 
-  const confirmRemove = async (member: Member) => { if (await dialog.confirm({ title: 'Remove member', message: `Remove ${member.displayName || 'this member'} from the book?`, cancelLabel: 'Cancel', confirmLabel: 'Remove', destructive: true })) {
+  const confirmRemove = async (member: Member) => {
+      const pendingId = `member:${member.userId}`;
+      if (!pendingActions.begin(pendingId)) return;
+      if (!await dialog.confirm({ title: 'Remove member', message: `Remove ${member.displayName || 'this member'} from the book?`, cancelLabel: 'Cancel', confirmLabel: 'Remove', destructive: true })) { pendingActions.finish(pendingId); return; }
       setActionId(member.userId);
       try { await invitationService.removeMember(bookId!, member.userId); await load(); }
-      catch (actionError) { void dialog.notify({ title: 'Could not remove member', message: toServiceError(actionError, 'Could not remove member').message }); }
-      finally { setActionId(null); }
-  } };
+      catch (actionError) { Toast.show({ type: 'error', text1: 'Could not remove member', text2: toServiceError(actionError, 'Could not remove member').message }); }
+      finally { pendingActions.finish(pendingId); setActionId(null); }
+  };
 
   const leaveBook = async () => { if (await dialog.confirm({ title: 'Leave book', message: `Leave “${book?.name ?? initialName ?? 'this book'}”?`, cancelLabel: 'Cancel', confirmLabel: 'Leave', destructive: true })) {
       try { await invitationService.leaveBook(bookId!); navigation.goBack(); }
       catch (actionError) { void dialog.notify({ title: 'Could not leave book', message: toServiceError(actionError, 'Could not leave book').message }); }
   } };
 
-  const revokeInvitation = async (invitation: Invitation) => { if (await dialog.confirm({ title: 'Revoke invitation', message: `Revoke the invitation for ${invitation.invitedEmail}?`, cancelLabel: 'Cancel', confirmLabel: 'Revoke', destructive: true })) {
+  const revokeInvitation = async (invitation: Invitation) => {
+      const pendingId = `invitation:${invitation.id}`;
+      if (!pendingActions.begin(pendingId)) return;
+      if (!await dialog.confirm({ title: 'Revoke invitation', message: `Revoke the invitation for ${invitation.invitedEmail}?`, cancelLabel: 'Cancel', confirmLabel: 'Revoke', destructive: true })) { pendingActions.finish(pendingId); return; }
       setActionId(invitation.id);
       try { await invitationService.revokeInvitation(invitation.id); await load(); }
-      catch (actionError) { void dialog.notify({ title: 'Could not revoke invitation', message: toServiceError(actionError, 'Could not revoke invitation').message }); }
-      finally { setActionId(null); }
-  } };
+      catch (actionError) { Toast.show({ type: 'error', text1: 'Could not revoke invitation', text2: toServiceError(actionError, 'Could not revoke invitation').message }); }
+      finally { pendingActions.finish(pendingId); setActionId(null); }
+  };
 
   const openSettlement = (suggestion?: { fromUser: string; toUser: string; amount: number }) => {
     const currentSuggestion = suggestion ?? suggestions.find((item) => item.fromUser === user?.id);
@@ -150,12 +159,15 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  const confirmDeleteSettlement = async (settlement: Settlement) => { if (await dialog.confirm({ title: 'Delete settlement', message: 'Delete this payment from the shared balance history?', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) {
+  const confirmDeleteSettlement = async (settlement: Settlement) => {
+      const pendingId = `settlement:${settlement.id}`;
+      if (!pendingActions.begin(pendingId)) return;
+      if (!await dialog.confirm({ title: 'Delete settlement', message: 'Delete this payment from the shared balance history?', cancelLabel: 'Cancel', confirmLabel: 'Delete', destructive: true })) { pendingActions.finish(pendingId); return; }
       setActionId(settlement.id);
       try { await settlementService.deleteSettlement(settlement.id); await load(); }
-      catch (deleteError) { void dialog.notify({ title: 'Could not delete settlement', message: toServiceError(deleteError, 'Could not delete settlement').message }); }
-      finally { setActionId(null); }
-  } };
+      catch (deleteError) { Toast.show({ type: 'error', text1: 'Could not delete settlement', text2: toServiceError(deleteError, 'Could not delete settlement').message }); }
+      finally { pendingActions.finish(pendingId); setActionId(null); }
+  };
 
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}>
