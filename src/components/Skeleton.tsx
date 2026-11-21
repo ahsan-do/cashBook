@@ -32,7 +32,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({ width, height, radius = 8, s
   return (
     <View
       onLayout={(event) => setMeasuredWidth(event.nativeEvent.layout.width)}
-      style={[styles.clip, { width, height, borderRadius: radius, backgroundColor: theme.colors.borderLight }, style]}
+      style={[styles.clip, { width, height, borderRadius: radius, backgroundColor: theme.colors.surfaceVariant }, style]}
       accessible={false}
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
@@ -40,7 +40,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({ width, height, radius = 8, s
       <Animated.View
         style={[
           styles.shimmer,
-          { width: measuredWidth * 0.55, backgroundColor: theme.isDark ? '#3a3e35' : '#ffffff', transform: [{ translateX }] },
+          { width: measuredWidth * 0.55, backgroundColor: theme.colors.surfaceRaised, transform: [{ translateX }] },
         ]}
       />
     </View>

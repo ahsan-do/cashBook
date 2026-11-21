@@ -1,12 +1,6 @@
+import { AppText as Text } from '../components/AppText';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -114,7 +108,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
                     <View style={styles.bookTop}><Text style={styles.bookName} numberOfLines={1}>{book.name}</Text><Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} /></View>
                     <Text style={styles.balanceLabel}>Net balance</Text>
                     <BalanceAmount compact amount={balance} currencyCode={book.currencyCode} />
-                    <Text style={styles.flowLine}><Text style={{ color: theme.colors.success }}>In {formatMoney(cashIn, book.currencyCode)}</Text><Text style={{ color: theme.colors.textTertiary }}>  ·  </Text><Text style={{ color: theme.colors.error }}>Out {formatMoney(cashOut, book.currencyCode)}</Text></Text>
+                    <Text style={styles.flowLine}><Text style={{ color: theme.colors.success, fontVariant: ['tabular-nums'] }}>In {formatMoney(cashIn, book.currencyCode)}</Text><Text style={{ color: theme.colors.textTertiary }}>  ·  </Text><Text style={{ color: theme.colors.error, fontVariant: ['tabular-nums'] }}>Out {formatMoney(cashOut, book.currencyCode)}</Text></Text>
                   {recent.length > 0 && <View style={styles.recentBlock}>
                     <Text style={styles.recentHeading}>Recent</Text>
                     {recent.map((transaction) => <View key={transaction.id} style={styles.recentRow}>
@@ -163,13 +157,13 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   primaryButton: { minHeight: 52, paddingHorizontal: theme.spacing.xxl, borderRadius: theme.radius.md, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center', marginTop: theme.spacing.xxl },
   primaryButtonText: { fontSize: theme.typeSize.body, color: theme.colors.onPrimary, fontWeight: '700' },
   bookList: { gap: theme.spacing.md },
-  bookCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.borderLight },
+  bookCard: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.card, padding: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border },
   bookTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bookName: { flex: 1, color: theme.colors.text, fontSize: theme.typeSize.subtitle, fontWeight: '700' },
   balanceLabel: { marginTop: theme.spacing.md, color: theme.colors.textSecondary, fontSize: theme.typeSize.small },
   balance: { marginTop: theme.spacing.xs },
   flowLine: { fontSize: theme.typeSize.caption, marginTop: theme.spacing.xs },
-  recentBlock: { marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.borderLight },
+  recentBlock: { marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   recentHeading: { fontSize: theme.typeSize.caption, fontWeight: '700', color: theme.colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: theme.spacing.xs },
   recentRow: { minHeight: 52, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: theme.spacing.sm },
   categoryIcon: { width: 34, height: 34, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceVariant },
@@ -178,7 +172,7 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   recentDate: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, marginTop: 2 },
   recentSplit: { color: theme.colors.primaryVariant, fontSize: theme.typeSize.caption, fontWeight: '700', marginTop: 2 },
   recentValue: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xxs },
-  recentAmount: { fontSize: theme.typeSize.caption, fontWeight: '700' },
+  recentAmount: { fontSize: theme.typeSize.caption, fontWeight: '700', fontVariant: ['tabular-nums'] },
   seeAll: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: theme.spacing.xs, minHeight: 48, marginTop: theme.spacing.sm },
   seeAllText: { color: theme.colors.primaryVariant, fontWeight: '700', fontSize: theme.typeSize.small },
   fab: { position: 'absolute', right: theme.spacing.xl, bottom: theme.spacing.xl, minWidth: 60, minHeight: 60, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary, elevation: 5, shadowColor: theme.colors.shadow, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6 },

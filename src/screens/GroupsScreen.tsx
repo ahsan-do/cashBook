@@ -1,17 +1,7 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import React, { useCallback, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
-import {
-  View,
-  LayoutAnimation,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  RefreshControl,
-  Modal,
-  TextInput,
-  ScrollView,
-} from 'react-native';
+import { View, LayoutAnimation, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Modal, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
@@ -41,7 +31,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  
+
   // Edit/Delete state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -146,7 +136,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
     try {
       await bookService.softDeleteBook(deletingBook.id);
       animateBookLayout.current = true;
-      
+
       Toast.show({
         type: 'success',
         text1: 'Success',
@@ -195,7 +185,11 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         styles.groupItem,
         {
           backgroundColor: theme.colors.surface,
-          borderBottomColor: theme.colors.borderLight,
+          borderColor: theme.colors.border,
+          borderRadius: theme.radius.card,
+          borderWidth: 1,
+          borderBottomWidth: 0,
+          shadowColor: theme.colors.shadow,
         },
       ]}
       onPress={() => void handleOpenBook(item)}
@@ -214,7 +208,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
           {item.description || 'No description'}
         </Text>
         <View style={styles.groupStats}>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => handleShowMemberDetails(item)}
             style={styles.memberCountButton}
           >
@@ -235,7 +229,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}>
+      <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
         <Text style={[styles.title, { color: theme.colors.text }]}>My Books</Text>
         <TouchableOpacity
           style={[styles.createButton, { backgroundColor: theme.colors.primary }]}
@@ -264,7 +258,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         ListEmptyComponent={
           loading ? (
             <View>
-              {[0, 1, 2].map((item) => <View key={item} style={[styles.groupItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.borderLight }]}>
+              {[0, 1, 2].map((item) => <View key={item} style={[styles.groupItem, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border, borderRadius: theme.radius.card }]}>
                 <View style={styles.groupInfo}><Skeleton width="55%" height={18} /><Skeleton width="82%" height={13} style={{ marginTop: theme.spacing.md }} /><View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: theme.spacing.md }}><Skeleton width={96} height={12} /><Skeleton width={54} height={18} radius={8} /></View></View>
                 <Skeleton width={20} height={20} radius={10} style={{ marginLeft: theme.spacing.md }} />
               </View>)}
@@ -303,8 +297,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setShowEditModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Edit Book</Text>
               <TouchableOpacity onPress={() => setShowEditModal(false)}>
@@ -375,8 +369,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setShowDeleteConfirm(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Delete Book</Text>
             </View>
@@ -410,8 +404,8 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
         transparent={true}
         onRequestClose={() => setShowMemberDetails(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.colors.surface, borderTopLeftRadius: theme.radius.card, borderTopRightRadius: theme.radius.card, paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
                 {selectedBook?.name} - Members
@@ -435,7 +429,7 @@ export const GroupsScreen: React.FC<GroupsScreenProps> = ({ navigation }) => {
                 </View>
               ) : (
                 memberDetails.map((member) => (
-                  <View key={member.userId} style={[styles.memberItem, { borderBottomColor: theme.colors.borderLight }]}>
+                  <View key={member.userId} style={[styles.memberItem, { borderBottomColor: theme.colors.border }]}>
                     <View style={styles.memberInfo}>
                       <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primary }]}>
                         <Ionicons name="person" size={20} color={theme.colors.onPrimary} />
@@ -472,7 +466,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    borderBottomWidth: 1,
+    minHeight: 72,
   },
   title: {
     fontSize: 24,
@@ -489,12 +483,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   groupItem: {
-    borderRadius: 12,
+    borderRadius: 0,
     padding: 16,
     marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
@@ -502,7 +495,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
     elevation: 5,
-    borderBottomWidth: 1,
+    borderWidth: 1,
   },
   groupInfo: {
     flex: 1,
@@ -581,12 +574,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+
     justifyContent: 'flex-end',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
     padding: 20,
     maxHeight: '80%',
   },

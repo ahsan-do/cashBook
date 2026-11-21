@@ -1,5 +1,6 @@
+import { AppText as Text } from '../components/AppText';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { RefreshControl, SectionList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, SectionList, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
@@ -25,7 +26,7 @@ import { useAnimatedRemoval } from '../hooks/useAnimatedRemoval';
 import { AnimatedRemovalRow } from '../components/AnimatedRemovalRow';
 
 interface Props { navigation: any; route: any; }
-interface DaySection { date: string; data: Transaction[]; }
+interface DaySection { date: string; data: Transaction[][]; }
 type Totals = { cashInTotal: number; cashOutTotal: number; netBalance: number };
 
 export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
@@ -131,12 +132,12 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       bucket.push(transaction);
       grouped.set(transaction.entryDate, bucket);
     }
-    return Array.from(grouped.entries()).map(([date, data]) => ({ date, data }));
+    return Array.from(grouped.entries()).map(([date, data]) => ({ date, data: [data] }));
   }, [transactions]);
 
   const currency = book?.currencyCode ?? 'PKR';
   const canDelete = (item: Transaction) => item.createdBy === user?.id || isOwner;
-  const renderItem = ({ item, index }: { item: Transaction; index: number }) => {
+  const renderTransaction = (item: Transaction, index: number, isLast: boolean) => {
     const editable = item.createdBy === user?.id;
     const rowTitle = entryDisplayTitle(item);
     const id = `transaction:${item.id}`;
@@ -165,40 +166,39 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
       renderRightActions={() => <TouchableOpacity style={styles.deleteAction} onPress={() => deleteEntry(item)} disabled={removalInProgress} accessibilityRole="button" accessibilityLabel={`Delete ${rowTitle}`}><Ionicons name="trash-outline" size={21} color={theme.colors.onError} /><Text style={styles.deleteText}>Delete</Text></TouchableOpacity>}
     >{row}</Swipeable>;
     const animatedContent = <MotionReveal key={`${isNew ? 'new' : 'row'}-${item.id}`} delay={revealDelay}>{canDelete(item) ? swipeableRow : row}</MotionReveal>;
-    const animatedRow = <AnimatedRemovalRow id={id} removing={removal.removingIds.has(id)} onTransitionEnd={removal.onTransitionEnd}>{animatedContent}</AnimatedRemovalRow>;
-    if (!canDelete(item)) return animatedRow;
-    return animatedRow;
+    return <AnimatedRemovalRow key={item.id} id={id} removing={removal.removingIds.has(id)} onTransitionEnd={removal.onTransitionEnd}>
+      <View>{animatedContent}{!isLast && <View style={styles.entryDivider} />}</View>
+    </AnimatedRemovalRow>;
   };
 
   return <SafeAreaView style={styles.container}>
     <View style={styles.header}>
       <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()} accessibilityRole="button" accessibilityLabel="Go back"><Ionicons name="arrow-back" size={23} color={theme.colors.text} /></TouchableOpacity>
       <Text style={styles.headerTitle} numberOfLines={1}>{book?.name ?? initialName ?? 'Cash book'}</Text>
-      <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('BookMembers', { bookId, name: book?.name ?? initialName })} accessibilityRole="button" accessibilityLabel="Book members and invitations"><Ionicons name="people-outline" size={23} color={theme.colors.primaryVariant} /></TouchableOpacity>
+      <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('BookMembers', { bookId, name: book?.name ?? initialName })} accessibilityRole="button" accessibilityLabel="Book members and invitations"><Ionicons name="people-outline" size={20} color={theme.colors.primaryVariant} /></TouchableOpacity>
     </View>
 
     <View style={styles.summary}>
       <Text style={styles.summaryLabel}>Net balance</Text>
       {totals ? <BalanceAmount amount={totals.netBalance} currencyCode={currency} /> : error ? <Text style={styles.stateText}>—</Text> : <Skeleton width={190} height={46} style={{ marginTop: theme.spacing.sm }} />}
       <View style={styles.summaryFlows}>
-        <Text style={[styles.flowValue, { color: theme.colors.success }]}>In {totals ? formatMoney(totals.cashInTotal, currency) : '—'}</Text>
-        <View style={styles.flowDivider} />
-        <Text style={[styles.flowValue, { color: theme.colors.error }]}>Out {totals ? formatMoney(totals.cashOutTotal, currency) : '—'}</Text>
+        <View style={[styles.flowChip, { backgroundColor: theme.colors.incomeTint }]}><Ionicons name="arrow-down" size={15} color={theme.colors.success} /><Text style={[styles.flowValue, { color: theme.colors.success }]}>In {totals ? formatMoney(totals.cashInTotal, currency) : '—'}</Text></View>
+        <View style={[styles.flowChip, { backgroundColor: theme.colors.expenseTint }]}><Ionicons name="arrow-up" size={15} color={theme.colors.error} /><Text style={[styles.flowValue, { color: theme.colors.error }]}>Out {totals ? formatMoney(totals.cashOutTotal, currency) : '—'}</Text></View>
       </View>
       {!!error && <Text style={styles.errorText}>{error}</Text>}
     </View>
 
     {loading && transactions.length === 0 ? <View style={styles.loadingList}>
-      <Skeleton width={86} height={15} style={{ marginBottom: theme.spacing.sm }} />
-      {[0, 1, 2, 3, 4].map((row) => <View key={row} style={styles.entry}><Skeleton width={40} height={40} radius={20} /><View style={styles.entryBody}><Skeleton width="78%" height={15} /><Skeleton width="56%" height={11} style={{ marginTop: theme.spacing.sm }} /></View><View style={styles.entryAmounts}><Skeleton width={80} height={14} /><Skeleton width={70} height={11} style={{ marginTop: theme.spacing.sm }} /></View></View>)}
+      {[0, 1].map((day) => <View key={day} style={styles.skeletonDay}><View style={styles.dayHeader}><Skeleton width={86} height={15} /><Skeleton width={82} height={14} /></View><View style={styles.dayCard}>{[0, 1, 2].map((row) => <View key={row} style={styles.entry}><Skeleton width={40} height={40} radius={20} /><View style={styles.entryBody}><Skeleton width="78%" height={15} /><Skeleton width="56%" height={11} style={{ marginTop: theme.spacing.sm }} /></View><View style={styles.entryAmounts}><Skeleton width={80} height={14} /><Skeleton width={70} height={11} style={{ marginTop: theme.spacing.sm }} /></View></View>)}</View></View>)}
     </View>
       : error && transactions.length === 0 ? <View style={styles.state}><Text style={styles.errorText}>{error}</Text><TouchableOpacity style={styles.retry} onPress={() => { setLoading(true); void loadFirstPage(); }}><Text style={styles.retryText}>Try again</Text></TouchableOpacity></View>
         : <SectionList
           sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
+          keyExtractor={(item) => item[0]?.id ?? 'empty-day'}
+          renderItem={({ item, index }) => <View style={styles.dayCard}>{item.map((transaction, rowIndex) => renderTransaction(transaction, rowIndex, rowIndex === item.length - 1))}</View>}
           renderSectionHeader={({ section }) => {
-            const dailyNet = section.data.reduce((sum, entry) => sum + (entry.type === 'cash_in' ? entry.amount : -entry.amount), 0);
+            const dayTransactions = section.data[0] ?? [];
+            const dailyNet = dayTransactions.reduce((sum, entry) => sum + (entry.type === 'cash_in' ? entry.amount : -entry.amount), 0);
             const incompleteNewestDay = hasMore && section.date === sections[sections.length - 1]?.date;
             return <View style={styles.dayHeader}><Text style={styles.dayText}>{formatEntryDate(section.date)}</Text>{!incompleteNewestDay && <Text style={[styles.dayNet, { color: dailyNet >= 0 ? theme.colors.success : theme.colors.error }]}>{dailyNet >= 0 ? '+' : '−'}{formatMoney(Math.abs(dailyNet), currency)}</Text>}</View>;
           }}
@@ -218,37 +218,41 @@ export const GroupDetailsScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  header: { minHeight: 60, paddingHorizontal: theme.spacing.sm, flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
-  headerButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  header: { minHeight: 64, paddingHorizontal: theme.spacing.xl, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, backgroundColor: theme.colors.background },
+  headerButton: { width: 56, minHeight: 48, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceRaised },
+
   headerTitle: { flex: 1, textAlign: 'center', color: theme.colors.text, fontWeight: '700', fontSize: theme.typeSize.subtitle },
-  summary: { paddingHorizontal: theme.spacing.xl, paddingTop: theme.spacing.lg, paddingBottom: theme.spacing.md, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight },
+  summary: { marginHorizontal: theme.spacing.xl, marginTop: theme.spacing.xs, marginBottom: theme.spacing.md, padding: theme.spacing.lg, borderRadius: theme.radius.card, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   summaryLabel: { color: theme.colors.textSecondary, fontSize: theme.typeSize.small, fontWeight: '600' },
-  summaryFlows: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.xs },
-  flowValue: { fontSize: theme.typeSize.caption, fontWeight: '600' },
-  flowDivider: { width: 1, height: 16, backgroundColor: theme.colors.border },
+  summaryFlows: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.md, flexWrap: 'wrap' },
+  flowChip: { minHeight: 34, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs, paddingHorizontal: theme.spacing.md, borderRadius: theme.radius.pill },
+  flowValue: { fontSize: theme.typeSize.caption, fontWeight: '600', fontVariant: ['tabular-nums'] },
   errorText: { color: theme.colors.error, fontSize: theme.typeSize.small, marginTop: theme.spacing.sm },
   state: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: theme.spacing.md, padding: theme.spacing.xl },
-  loadingList: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
+  loadingList: { paddingHorizontal: theme.spacing.xl, paddingTop: theme.spacing.md, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl, gap: theme.spacing.md },
+  skeletonDay: { gap: theme.spacing.xs },
   loadingFooter: { paddingTop: theme.spacing.sm },
   stateText: { color: theme.colors.textSecondary },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: theme.spacing.lg },
   retryText: { color: theme.colors.primaryVariant, fontWeight: '700' },
-  listContent: { paddingHorizontal: theme.spacing.lg, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
-  emptyContent: { flexGrow: 1, padding: theme.spacing.lg, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
-  dayHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.xs, backgroundColor: theme.colors.background },
+  listContent: { paddingHorizontal: theme.spacing.xl, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl, gap: theme.spacing.xs },
+  emptyContent: { flexGrow: 1, paddingHorizontal: theme.spacing.xl, paddingBottom: 60 + theme.spacing.xl + theme.spacing.xxxl },
+  dayHeader: { minHeight: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: theme.colors.background },
   dayText: { fontSize: theme.typeSize.small, color: theme.colors.textSecondary, fontWeight: '700' },
-  dayNet: { fontSize: theme.typeSize.caption, fontWeight: '700' },
-  entry: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, padding: theme.spacing.md, backgroundColor: theme.colors.surface, borderBottomWidth: 1, borderBottomColor: theme.colors.borderLight },
+  dayNet: { fontSize: theme.typeSize.caption, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  dayCard: { borderRadius: theme.radius.card, overflow: 'hidden', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
+  entry: { minHeight: 76, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, padding: theme.spacing.md, backgroundColor: theme.colors.surface },
+  entryDivider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.border, marginLeft: theme.spacing.md + 40 + theme.spacing.md, marginRight: theme.spacing.md },
   categoryIcon: { width: 40, height: 40, borderRadius: theme.radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceVariant },
   entryBody: { flex: 1 },
   entryTitle: { fontSize: theme.typeSize.body, fontWeight: '600', color: theme.colors.text },
   entryMeta: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xs },
-  entryAttribution: { fontSize: theme.typeSize.caption, color: theme.colors.textTertiary, marginTop: theme.spacing.xxs },
+  entryAttribution: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xxs },
   splitIndicator: { alignSelf: 'flex-start', color: theme.colors.primaryVariant, fontSize: theme.typeSize.caption, fontWeight: '700', marginTop: theme.spacing.xxs },
   entryAmounts: { alignItems: 'flex-end' },
   signedAmount: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xxs },
-  entryAmount: { fontSize: theme.typeSize.small, fontWeight: '700' },
-  runningBalance: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xs },
+  entryAmount: { fontSize: theme.typeSize.small, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  runningBalance: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xs, fontVariant: ['tabular-nums'] },
   deleteAction: { width: 86, minHeight: 76, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.error, gap: theme.spacing.xs },
   deleteText: { fontSize: theme.typeSize.caption, fontWeight: '700', color: theme.colors.onError },
   empty: { alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xxxl, flex: 1 },

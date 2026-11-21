@@ -1,7 +1,7 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import React, { useRef, useState } from 'react';
-import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View,
-} from 'react-native';
+import type { TextInput as NativeTextInput } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,7 +20,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [fieldError, setFieldError] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState('');
   const [emailNotConfirmed, setEmailNotConfirmed] = useState(false);
-  const passwordRef = useRef<TextInput>(null);
+  const passwordRef = useRef<NativeTextInput>(null);
   const { signIn, signInWithGoogle } = useAuth();
   const { theme } = useTheme();
   const styles = makeStyles(theme);

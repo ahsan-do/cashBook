@@ -1,15 +1,6 @@
+import { AppText as Text } from '../components/AppText';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  AppState,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { AppState, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, View, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';

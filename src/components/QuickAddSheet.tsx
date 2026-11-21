@@ -1,17 +1,6 @@
+import { AppText as Text, AppTextInput as TextInput } from './AppText';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Animated,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -391,7 +380,7 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   content: { paddingHorizontal: theme.spacing.xl, paddingBottom: theme.spacing.xxl, gap: theme.spacing.sm },
   amountArea: { alignItems: 'center', paddingVertical: 12 },
   amountReadout: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  amountText: { fontSize: 48, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5 },
+  amountText: { fontSize: 48, lineHeight: 54, fontWeight: '800', letterSpacing: -1.5, fontVariant: ['tabular-nums'] },
   amountCurrency: { fontSize: theme.typeSize.caption, fontWeight: '700', letterSpacing: 0.6, alignSelf: 'flex-end', marginBottom: theme.spacing.md },
   amountHint: { fontSize: theme.typeSize.caption, textTransform: 'uppercase', letterSpacing: 1, fontWeight: '700' },
   typeToggle: { flexDirection: 'row', padding: theme.spacing.xs, borderRadius: theme.radius.md, gap: theme.spacing.xs },

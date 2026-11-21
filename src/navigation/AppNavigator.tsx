@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { AppText as Text } from '../components/AppText';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../contexts/AuthContext';
@@ -28,10 +29,18 @@ import { useReducedMotion } from '../hooks/useReducedMotion';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const TabItem: React.FC<{ route: BottomTabBarProps['state']['routes'][number]; focused: boolean; color: string; navigation: BottomTabBarProps['navigation']; width: number }> = ({ route, focused, color, navigation, width }) => {
+interface PillLayout { x: number; y: number; width: number; height: number; }
+
+const TabItem: React.FC<{ route: BottomTabBarProps['state']['routes'][number]; focused: boolean; color: string; navigation: BottomTabBarProps['navigation']; width: number | `${number}%`; onPillLayout: (key: string, layout: PillLayout) => void }> = ({ route, focused, color, navigation, width, onPillLayout }) => {
   const { theme } = useTheme();
   const reduced = useReducedMotion();
   const iconScale = useRef(new Animated.Value(1)).current;
+  const itemPosition = useRef({ x: 0, y: 0 });
+  const pillPosition = useRef<PillLayout | null>(null);
+  const reportPillLayout = () => {
+    if (!pillPosition.current) return;
+    onPillLayout(route.key, { ...pillPosition.current, x: itemPosition.current.x + pillPosition.current.x, y: itemPosition.current.y + pillPosition.current.y });
+  };
   const iconName = route.name === 'Home' ? (focused ? 'home' : 'home-outline') : route.name === 'Groups' ? (focused ? 'wallet' : 'wallet-outline') : (focused ? 'person' : 'person-outline');
   const label = route.name === 'Groups' ? 'Books' : route.name;
   useEffect(() => {
@@ -47,9 +56,19 @@ const TabItem: React.FC<{ route: BottomTabBarProps['state']['routes'][number]; f
       if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
     }}
     onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+    onLayout={(event) => {
+      itemPosition.current = { x: event.nativeEvent.layout.x, y: event.nativeEvent.layout.y };
+      reportPillLayout();
+    }}
     style={[styles.tabItem, { width }]}
   >
-    <Animated.View style={{ transform: [{ scale: iconScale }] }}><Ionicons name={iconName} size={22} color={focused ? theme.colors.onPrimary : color} /></Animated.View>
+    <View style={styles.iconPill} onLayout={(event) => {
+      const { x, y, width: measuredWidth, height } = event.nativeEvent.layout;
+      pillPosition.current = { x, y, width: measuredWidth, height };
+      reportPillLayout();
+    }}>
+      <Animated.View style={{ transform: [{ scale: iconScale }] }}><Ionicons name={iconName} size={22} color={focused ? theme.colors.onPrimary : color} /></Animated.View>
+    </View>
     <Text style={[styles.tabLabel, { color: focused ? theme.colors.text : color }]}>{label}</Text>
   </Pressable>;
 };
@@ -57,22 +76,49 @@ const TabItem: React.FC<{ route: BottomTabBarProps['state']['routes'][number]; f
 const AnimatedTabBar: React.FC<BottomTabBarProps> = ({ state, navigation }) => {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
-  const reduced = useReducedMotion();
-  const [barWidth, setBarWidth] = useState(0);
+  const fontScale = useWindowDimensions().fontScale;
+  const [pillLayouts, setPillLayouts] = useState<Record<string, PillLayout>>({});
   const pillX = useRef(new Animated.Value(0)).current;
-  const itemWidth = barWidth / Math.max(state.routes.length, 1);
-  const targetX = state.index * itemWidth + Math.max(0, (itemWidth - 54) / 2);
+  const pillY = useRef(new Animated.Value(0)).current;
+  const initialized = useRef(false);
+  const selectedRouteKey = state.routes[state.index]?.key;
+  const selectedPill = selectedRouteKey ? pillLayouts[selectedRouteKey] : undefined;
+  const reduced = useReducedMotion();
+  const onPillLayout = useCallback((key: string, layout: PillLayout) => {
+    setPillLayouts((current) => {
+      const prior = current[key];
+      if (prior && prior.x === layout.x && prior.y === layout.y && prior.width === layout.width && prior.height === layout.height) return current;
+      return { ...current, [key]: layout };
+    });
+  }, []);
+
   useEffect(() => {
-    if (!barWidth) return;
-    if (reduced) { pillX.setValue(targetX); return; }
-    Animated.spring(pillX, { toValue: targetX, ...motion.spring, useNativeDriver: true }).start();
-  }, [barWidth, targetX, pillX, reduced]);
-  return <View onLayout={(event) => setBarWidth(event.nativeEvent.layout.width)} style={[styles.tabBar, { height: 62 + insets.bottom, paddingBottom: Math.max(4, insets.bottom), backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
-    {barWidth > 0 && <Animated.View pointerEvents="none" style={[styles.activePill, { backgroundColor: theme.colors.primary, transform: [{ translateX: pillX }] }]} />}
-    <View style={styles.tabRow}>{state.routes.map((route, index) => {
+    if (!selectedPill) return;
+    if (reduced) {
+      pillX.setValue(selectedPill.x);
+      pillY.setValue(selectedPill.y);
+      initialized.current = true;
+      return;
+    }
+    if (!initialized.current) {
+      pillX.setValue(selectedPill.x);
+      pillY.setValue(selectedPill.y);
+      initialized.current = true;
+      return;
+    }
+    Animated.parallel([
+      Animated.spring(pillX, { toValue: selectedPill.x, ...motion.spring, useNativeDriver: true }),
+      Animated.spring(pillY, { toValue: selectedPill.y, ...motion.spring, useNativeDriver: true }),
+    ]).start();
+  }, [selectedPill?.x, selectedPill?.y, pillX, pillY, reduced]);
+
+  return <View style={[styles.tabBar, { minHeight: Math.max(66, 56 + 20 * Math.min(fontScale, 2)) + insets.bottom, paddingBottom: Math.max(4, insets.bottom), backgroundColor: theme.colors.surface, borderTopColor: theme.colors.border }]}>
+    <View style={styles.tabRow}>
+      {selectedPill && <Animated.View pointerEvents="none" style={[styles.activePill, { width: selectedPill.width, height: selectedPill.height, borderRadius: theme.radius.pill, backgroundColor: theme.colors.primary, transform: [{ translateX: pillX }, { translateY: pillY }] }]} />}
+      {state.routes.map((route, index) => {
       const focused = state.index === index;
       const color = focused ? theme.colors.text : theme.colors.textSecondary;
-      return <TabItem key={route.key} route={route} focused={focused} color={color} navigation={navigation} width={itemWidth} />;
+      return <TabItem key={route.key} route={route} focused={focused} color={color} navigation={navigation} width={`${100 / Math.max(state.routes.length, 1)}%`} onPillLayout={onPillLayout} />;
     })}</View>
   </View>;
 };
@@ -108,10 +154,11 @@ const MainTabNavigator = () => {
 
 const styles = StyleSheet.create({
   tabBar: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4 },
-  tabRow: { flex: 1, flexDirection: 'row', alignItems: 'center' },
-  activePill: { position: 'absolute', top: 4, left: 0, width: 54, height: 30, borderRadius: 15 },
-  tabItem: { height: 52, alignItems: 'center', justifyContent: 'center', gap: 1 },
-  tabLabel: { fontSize: 11, fontWeight: '600' },
+  tabRow: { flex: 1, flexDirection: 'row', alignItems: 'stretch' },
+  tabItem: { minHeight: 58, alignItems: 'center', justifyContent: 'center', gap: 1 },
+  iconPill: { width: 54, height: 34, borderRadius: 999, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  activePill: { position: 'absolute', top: 0, left: 0 },
+  tabLabel: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 });
 
 const MainStack = () => (

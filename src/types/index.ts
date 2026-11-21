@@ -131,6 +131,10 @@ export interface ThemeColors {
   background: string;
   surface: string;
   surfaceVariant: string;
+  surfaceRaised: string;
+  incomeTint: string;
+  expenseTint: string;
+  backdrop: string;
   
   // Text colors
   text: string;
@@ -174,7 +178,7 @@ export interface Theme {
   colors: ThemeColors;
   isDark: boolean;
   spacing: Record<'none' | 'xxs' | 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'huge', number>;
-  radius: Record<'sm' | 'md' | 'lg' | 'xl' | 'pill', number>;
+  radius: Record<'sm' | 'md' | 'lg' | 'xl' | 'card' | 'pill', number>;
   typeSize: Record<'caption' | 'small' | 'body' | 'subtitle' | 'title' | 'display' | 'amount', number>;
 }
 

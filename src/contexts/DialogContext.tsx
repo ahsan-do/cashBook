@@ -1,5 +1,6 @@
+import { AppText as Text } from '../components/AppText';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, BackHandler, Modal, Pressable, StyleSheet, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from './ThemeContext';
 import { createDialogQueue } from '../utils/dialogQueue';

@@ -1,9 +1,11 @@
+import { AppText as Text } from './AppText';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { formatMoney, formatMoneyParts, parseMoneyAmount } from '../services/money';
 import { motion } from '../theme/motion';
 import { useReducedMotion } from '../hooks/useReducedMotion';
+import { TABULAR_NUMS } from '../theme/typography';
 
 interface BalanceAmountProps {
   amount: number | string;
@@ -56,8 +58,8 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme'], compact: boolea
   return StyleSheet.create({
     container: { flexDirection: 'row', alignItems: 'flex-start', gap: compact ? 5 : 8 },
     amountLine: { flexDirection: 'row', alignItems: 'flex-start' },
-    major: { fontSize: majorSize, lineHeight: majorSize + 6, fontWeight: '800', letterSpacing: compact ? -0.7 : -1.2 },
-    minor: { fontSize: Math.round(majorSize * 0.5), lineHeight: Math.round(majorSize * 0.6), fontWeight: '700', marginTop: compact ? 2 : 3 },
+    major: { fontSize: majorSize, lineHeight: majorSize + 6, fontWeight: '800', letterSpacing: compact ? -0.7 : -1.2, fontVariant: [...TABULAR_NUMS] },
+    minor: { fontSize: Math.round(majorSize * 0.5), lineHeight: Math.round(majorSize * 0.6), fontWeight: '700', marginTop: compact ? 2 : 3, fontVariant: [...TABULAR_NUMS] },
     currency: { fontSize: theme.typeSize.caption - (compact ? 2 : 1), fontWeight: '700', letterSpacing: 0.7, marginTop: compact ? 10 : 13 },
   });
 };

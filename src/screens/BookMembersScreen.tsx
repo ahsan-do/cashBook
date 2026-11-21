@@ -1,5 +1,6 @@
+import { AppText as Text, AppTextInput as TextInput } from '../components/AppText';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Modal, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -259,14 +260,14 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
           </>}
         </ScrollView>}
     <Modal visible={inviteVisible} animationType="slide" transparent onRequestClose={() => setInviteVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
+      <View style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
         <View style={styles.modalHeader}><Text style={styles.sectionTitle}>Invite member</Text><TouchableOpacity style={styles.rowAction} onPress={() => setInviteVisible(false)} accessibilityRole="button" accessibilityLabel="Close invite form"><Ionicons name="close" size={22} color={theme.colors.textSecondary} /></TouchableOpacity></View>
         <TextInput style={styles.input} value={inviteEmail} onChangeText={setInviteEmail} placeholder="Email address" placeholderTextColor={theme.colors.textTertiary} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} accessibilityLabel="Invitation email address" />
         <TouchableOpacity style={styles.primaryButton} onPress={() => void sendInvite()} disabled={saving} accessibilityRole="button"><Text style={styles.primaryText}>{saving ? 'Sending…' : 'Send invitation'}</Text></TouchableOpacity>
       </View></View>
     </Modal>
     <Modal visible={settleVisible} animationType="slide" transparent onRequestClose={() => setSettleVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
+      <View style={[styles.modalOverlay, { backgroundColor: theme.colors.backdrop }]}><View style={[styles.modalCard, { paddingBottom: Math.max(theme.spacing.xxxl, insets.bottom + theme.spacing.xl) }]}>
         <View style={styles.modalHeader}><Text style={styles.sectionTitle}>Settle up</Text><TouchableOpacity style={styles.rowAction} onPress={() => setSettleVisible(false)} accessibilityRole="button" accessibilityLabel="Close settle up"><Ionicons name="close" size={22} color={theme.colors.textSecondary} /></TouchableOpacity></View>
         <Text style={styles.modalLabel}>Pay</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.payeeOptions}>{balances.filter((balance) => balance.userId !== user?.id && balance.balance > 0).map((balance) => <TouchableOpacity key={balance.userId} style={[styles.memberChip, { borderColor: settleTo === balance.userId ? theme.colors.primary : theme.colors.border, backgroundColor: settleTo === balance.userId ? theme.colors.primary : theme.colors.surfaceVariant }]} onPress={() => setSettleTo(balance.userId)} accessibilityRole="button" accessibilityState={{ selected: settleTo === balance.userId }}><Text style={{ color: settleTo === balance.userId ? theme.colors.onPrimary : theme.colors.text }}>{balance.displayName}</Text></TouchableOpacity>)}</ScrollView>
@@ -284,35 +285,35 @@ export const BookMembersScreen: React.FC<Props> = ({ navigation, route }) => {
 
 const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  header: { minHeight: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.xl, backgroundColor: theme.colors.background },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: theme.typeSize.subtitle, fontWeight: '700', color: theme.colors.text },
   iconButton: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
   content: { padding: theme.spacing.xl, paddingBottom: theme.spacing.xxxl },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing.xxl },
   sectionTitle: { fontSize: theme.typeSize.subtitle, color: theme.colors.text, fontWeight: '700', marginBottom: theme.spacing.md },
   sectionCount: { color: theme.colors.textSecondary, fontWeight: '500' },
-  card: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.lg, paddingHorizontal: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.borderLight },
-  row: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.borderLight, gap: theme.spacing.md },
+  card: { backgroundColor: theme.colors.surface, borderRadius: theme.radius.card, paddingHorizontal: theme.spacing.lg, borderWidth: 1, borderColor: theme.colors.border, overflow: 'hidden' },
+  row: { minHeight: 68, flexDirection: 'row', alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border, gap: theme.spacing.md },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceVariant },
   memberCopy: { flex: 1 },
   memberName: { fontSize: theme.typeSize.body, color: theme.colors.text, fontWeight: '600' },
-  memberRole: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xxs, textTransform: 'capitalize' },
+  memberRole: { fontSize: theme.typeSize.caption, color: theme.colors.textSecondary, marginTop: theme.spacing.xxs, textTransform: 'capitalize', fontVariant: ['tabular-nums'] },
   invitationMeta: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, flexWrap: 'wrap' },
   pendingBadge: { minHeight: 24, borderRadius: theme.radius.pill, justifyContent: 'center', paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.surfaceVariant },
   pendingText: { color: theme.colors.textSecondary, fontSize: theme.typeSize.caption, fontWeight: '700' },
   rowAction: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   memberChip: { minHeight: 44, borderWidth: 1, borderRadius: theme.radius.pill, paddingHorizontal: theme.spacing.md, alignItems: 'center', justifyContent: 'center' },
-  balanceRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.borderLight },
+  balanceRow: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
   balanceValue: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.xs },
-  balanceText: { fontSize: theme.typeSize.caption, fontWeight: '700' },
+  balanceText: { fontSize: theme.typeSize.caption, fontWeight: '700', fontVariant: ['tabular-nums'] },
   balanceLoading: { paddingVertical: theme.spacing.lg },
   suggestionBlock: { paddingTop: theme.spacing.md, gap: theme.spacing.xs },
   suggestionTitle: { fontSize: theme.typeSize.small, color: theme.colors.textSecondary, fontWeight: '700', marginBottom: theme.spacing.xs },
   suggestionRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
-  suggestionText: { flex: 1, fontSize: theme.typeSize.caption, color: theme.colors.text },
+  suggestionText: { flex: 1, fontSize: theme.typeSize.caption, color: theme.colors.text, fontVariant: ['tabular-nums'] },
   suggestionAction: { minWidth: 48, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
   suggestionActionText: { color: theme.colors.primaryVariant, fontWeight: '700' },
-  settlementRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.borderLight },
+  settlementRow: { minHeight: 64, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.colors.border },
   disabledReason: { color: theme.colors.textTertiary, fontSize: theme.typeSize.caption, marginTop: theme.spacing.xxs },
   disabledAction: { opacity: 0.45 },
   disabledLeave: { opacity: 0.55 },
@@ -324,12 +325,12 @@ const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.c
   error: { color: theme.colors.error, textAlign: 'center' },
   retry: { minHeight: 48, justifyContent: 'center', paddingHorizontal: theme.spacing.lg },
   retryText: { color: theme.colors.primaryVariant, fontWeight: '700' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#0008' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalCard: { padding: theme.spacing.xl, paddingBottom: theme.spacing.xxxl, borderTopLeftRadius: theme.radius.xl, borderTopRightRadius: theme.radius.xl, backgroundColor: theme.colors.surface, gap: theme.spacing.md },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   input: { minHeight: 52, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surfaceVariant, borderRadius: theme.radius.md, paddingHorizontal: theme.spacing.md, color: theme.colors.text },
   primaryButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radius.md, backgroundColor: theme.colors.primary },
-  settleButton: { marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
+  settleButton: { marginTop: theme.spacing.md, marginBottom: theme.spacing.md },
   primaryText: { color: theme.colors.onPrimary, fontWeight: '700' },
   disabledButton: { backgroundColor: theme.colors.surfaceVariant },
   disabledButtonText: { color: theme.colors.textSecondary },
