@@ -1,6 +1,8 @@
 <resources>
-  <color name="splashscreen_background">#ffffff</color>
-  <color name="iconBackground">#ffffff</color>
-  <color name="colorPrimary">#023c69</color>
-  <color name="colorPrimaryDark">#ffffff</color>
+  <color name="brand_dark">#11130f</color>
+  <color name="brand_lime">#c8f169</color>
+  <color name="splashscreen_background">@color/brand_dark</color>
+  <color name="iconBackground">@color/brand_lime</color>
+  <color name="colorPrimary">@color/brand_lime</color>
+  <color name="colorPrimaryDark">@color/brand_dark</color>
 </resources>

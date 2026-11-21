@@ -1,16 +1,12 @@
-import { AppText as Text } from '../components/AppText';
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../contexts/ThemeContext';
 import { useReducedMotion } from '../hooks/useReducedMotion';
 import { motion } from '../theme/motion';
+import { BRAND_COLORS, BRAND_MARK } from '../theme/brand';
 
 export const LoadingScreen = () => {
-  const { theme } = useTheme();
   const reducedMotion = useReducedMotion();
-  const styles = makeStyles(theme);
   const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -27,22 +23,15 @@ export const LoadingScreen = () => {
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.72, 1] });
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.content}>
-        <Animated.View style={[styles.mark, { backgroundColor: theme.colors.primary, opacity, transform: [{ scale }] }]}>
-          <Ionicons name="wallet-outline" size={32} color={theme.colors.onPrimary} />
-        </Animated.View>
-        <Text style={[styles.name, { color: theme.colors.text }]}>Cashbook</Text>
-        <Text style={[styles.caption, { color: theme.colors.textSecondary }]}>Your money, in view</Text>
-      </View>
-    </SafeAreaView>
+    <View style={styles.container}>
+      <Animated.View style={[styles.mark, { opacity, transform: [{ scale }] }]}>
+        <Ionicons name="wallet-outline" size={BRAND_MARK.loaderGlyphDp} color={BRAND_COLORS.darkPage} style={{ transform: [{ translateY: BRAND_MARK.opticalOffsetDp }] }} />
+      </Animated.View>
+    </View>
   );
 };
 
-const makeStyles = (theme: ReturnType<typeof useTheme>['theme']) => StyleSheet.create({
-  container: { flex: 1 },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  mark: { width: theme.spacing.huge + 32, height: theme.spacing.huge + 32, borderRadius: theme.radius.xl, alignItems: 'center', justifyContent: 'center' },
-  name: { marginTop: theme.spacing.xl, fontSize: theme.typeSize.title + 6, lineHeight: theme.typeSize.title + 12, fontWeight: '800', letterSpacing: -0.7 },
-  caption: { marginTop: theme.spacing.xs + 2, fontSize: theme.typeSize.small, fontWeight: '500' },
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: BRAND_COLORS.darkPage, alignItems: 'center', justifyContent: 'center' },
+  mark: { width: BRAND_MARK.tileDp, height: BRAND_MARK.tileDp, borderRadius: BRAND_MARK.tileDp / 2, backgroundColor: BRAND_COLORS.limePrimary, alignItems: 'center', justifyContent: 'center' },
 });
